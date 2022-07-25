@@ -15,21 +15,21 @@ df = []
 
 #make grammars 
 for numConn in conn 
-    gramVec = Matrix{Int64}[]
+    # gramVec = Matrix{Int64}[]
     for i in 1:numGrammars 
         done = false
-        while !done
+        # while !done
             candidateGram = genConnectedGrammar(N, numConn)
-            if !(candidateGram in grammVec) 
-                push!(gramVec, candidateGram)
-                done = true
-            end
+            # if !(candidateGram in gramVec) 
+                # push!(gramVec, candidateGram)
+            #     done = true
+            # end
             # store grammar in dataframe 
             TE = grammarEntropy(candidateGram)
             row = (; N, numConn, TE, candidateGram)
             push!(df, row)
-        end
+        # end
     end
 end
 
-bson(string("../data/grammars_", N, ".bson"), Dict(:data=>df))
+bson(string("../data/grammars_", N, ".bson"), data=df, alphSize = N)
