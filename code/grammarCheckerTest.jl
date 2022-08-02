@@ -93,7 +93,7 @@ for run in 1:N
         # Dense(input_len, input_len, relu),
         # Dense(input_len, input_len, relu),
         Dense(input_len, 10, relu),
-        Dense(10, 1, sigmoid)
+        Dense(10, 1, relu)
     )
     opt = ADAM(0.01)
     
@@ -156,7 +156,7 @@ end
 meanLoss = mean(lossMat, dims=1)
 meanVal = mean(valMat, dims=1) 
 p1 = plot([meanLoss', meanVal'], labels=["loss" "acc"])
-savefig(p1, "../graphs/model.png")
+# savefig(p1, "../graphs/model.png")
 
 # epochs = 1
 # lossVec = []

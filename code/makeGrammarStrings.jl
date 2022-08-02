@@ -20,5 +20,5 @@ for (i, entry) in enumerate(data)
     rename!(dataset, [:string, :numbers, :errors])
     dataset[!, :errors] = length.(dataset[!, :errors])
 
-    CSV.write(string("../data/dataset", "_id=", i, "_n=", N, "_conn=", entry[2], ".csv"), dataset)
+    CSV.write(string("../data/strings_6/", "id=", i, "_n=", N, "_conn=", entry[2], "_TE=", entry[3], ".csv"), dataset)
 end
