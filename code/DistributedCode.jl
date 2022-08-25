@@ -1,19 +1,25 @@
+
+println("Loading packages...")
 using Flux, Statistics
 using Flux.Data: DataLoader
 using Flux: onehotbatch, onecold, binarycrossentropy, mse, huber_loss, throttle, @epochs
-using Parameters: @with_kw
+# using Parameters: @with_kw
 using CSV, DataFrames
-using CUDA
 using Random
 using Plots
 using LinearAlgebra
+using SharedArrays
+println("Loaded")
 
-@with_kw mutable struct Args
-    η::Float64 = 1e-5       # learning rate
-    batchsize::Int = 15   # batch size
-    epochs::Int = 10        # number of epochs
-    device::Function = gpu  # set as gpu, if gpu available
-end
+JULIA_NUM_THREADS=6
+OPENBLAS_NUM_THREADS=6
+
+# @with_kw mutable struct Args
+#     η::Float64 = 1e-5       # learning rate
+#     batchsize::Int = 15   # batch size
+#     epochs::Int = 10        # number of epochs
+#     device::Function = gpu  # set as gpu, if gpu available
+# end
 
 function loss(x::Matrix{Float64}, y::LinearAlgebra.Adjoint{Int64, Vector{Int64}})
     # modout = model(x) .>= 0.5
@@ -38,7 +44,7 @@ function calcAcc(test_X::Matrix{Float64}, test_Y::LinearAlgebra.Adjoint{Int64, V
     return (acc0::Float64, acc1::Float64)::Tuple{Float64, Float64}
 end
 
-function learnGrammar(f::String, datdir::String, n::Int64)
+function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     df = CSV.read(string(datdir, f), DataFrame)
 
     batchsize = 15 
@@ -51,7 +57,7 @@ function learnGrammar(f::String, datdir::String, n::Int64)
 
     df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
-    args = Args()
+    # args = Args()
     global model = Chain(
         Dense(input_len, Int(ceil(input_len)), relu),
         # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
@@ -84,7 +90,7 @@ function learnGrammar(f::String, datdir::String, n::Int64)
     valVec = []
     # println("Training...")
 
-    n_epochs = 500::Int64
+    # n_epochs = 500::Int64
 
     startAcc0 , startAcc1 = calcAcc(test_X, test_Y);
 
@@ -99,7 +105,7 @@ function learnGrammar(f::String, datdir::String, n::Int64)
                 end 
                 Flux.update!(opt, Flux.params(model), gs)
             end 
-        # push!(lossVec, l)
+        push!(lossVec, l)
         # modout = model(test_X) .>= 0.5
         # categories = cumprod(modout, dims=1)
         # preds = sum(categories, dims=1)
@@ -117,28 +123,18 @@ function learnGrammar(f::String, datdir::String, n::Int64)
     return (change0, change1)::Tuple{Float64, Float64}
 end
 
-datdir = "../data/strings_6/"
-files = shuffle(readdir(datdir))
+println("Loading Data...")
+datdir = "../data/stringsNoLoops_5/"
+# files = shuffle(readdir(datdir))
+files = readdir(datdir)
 
-listID = zeros(length(files))
-listTE = zeros(length(files))
-listC0 = zeros(length(files))
-listC1 = zeros(length(files))
+println("Loaded")
 
-for i in 1:length(files[1:100])
-    f = files[i]
-    fcut = f[1:end-4]
-    flist = split.(split(fcut, "_"), "=")
-    flist = [[i[1], parse(Float64, i[2])] for i in flist]
-    fDict = Dict(flist)
-
-    (c0, c1) = learnGrammar(f, datdir, Int(fDict["n"]))
-    listC0[i] = c0
-    listC1[i] = c1
-    listTE[i] = fDict["TE"]
-    listID[i] = fDict["id"]
-end
-
-changeDat = DataFrame(Dict("change0"=> listC0, "change1" => listC1 , "TE" => listTE, "id" => listID))
-
-CSV.write(string(datdir, "change.csv"), changeDat)
+println("Compiling function...")
+of = files[1]
+ofcut = of[1:end-4]
+oflist = split.(split(ofcut, "_"), "=")
+oflist = [[i[1], parse(Float64, i[2])] for i in oflist]
+ofDict = Dict(oflist)
+learnGrammar(of, datdir, Int(ofDict["n"]), 1)
+println("Compiled")

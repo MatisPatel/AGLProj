@@ -1,18 +1,18 @@
 using Flux, Statistics
 using Flux.Data: DataLoader
 using Flux: onehotbatch, onecold, binarycrossentropy, mse, huber_loss, throttle, @epochs
-using Parameters: @with_kw
+# using Parameters: @with_kw
 using CSV, DataFrames
-using CUDA
+# using CUDA
 using Random
 using Plots
 
-@with_kw mutable struct Args
-    η::Float64 = 1e-5       # learning rate
-    batchsize::Int = 15   # batch size
-    epochs::Int = 10        # number of epochs
-    device::Function = gpu  # set as gpu, if gpu available
-end
+# @with_kw mutable struct Args
+#     η::Float64 = 1e-5       # learning rate
+#     batchsize::Int = 15   # batch size
+#     epochs::Int = 10        # number of epochs
+#     device::Function = gpu  # set as gpu, if gpu available
+# end
 
 function loss(x, y)
     # modout = model(x) .>= 0.5
@@ -34,15 +34,15 @@ input_len = 6*11
 
 df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
-args = Args()
+# args = Args()
 global model = Chain(
     Dense(input_len, Int(ceil(input_len)), relu),
-    Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
+    # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
     Dropout(0.1),
     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
     Dense(Int(ceil(input_len)), output_len, sigmoid)
 )
-opt = ADAM(0.00001)
+opt = ADAM(0.0001)
 
 global df, indx, propTests
 df = df[shuffle(1:size(df, 1)), :];
@@ -79,7 +79,7 @@ for epoch in 1:n_epochs
     local l
     println(epoch)
     for (bnum, d) in enumerate(train_dat)
-        # println(bnum)
+        println(bnum)
         gs = gradient(Flux.params(model)) do 
             l = loss(d[1], d[2])
         end 
@@ -112,3 +112,7 @@ function calcAcc(test_X, test_Y)
     acc1 = sum((preds .== test_Y) .| (preds .== (test_Y.+1)) .| (preds .== (test_Y.-1)))/length(test_Y)
     return (acc0, acc1)
 end
+
+outDat = DataFrame(Dict("strings" => df.string[indx+1:end], "truth" => vec([x for x in test_Y]), "preds" => vec([x for x in preds])))
+
+CSV.write("../data/simgle_model_out.csv", outDat)

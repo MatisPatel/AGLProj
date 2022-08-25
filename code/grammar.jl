@@ -22,7 +22,7 @@ function makeErrString(alphabet, grammar, err_grammar, str_len, errors)
     str_idxs[1] = rand(1:alphSize) 
     where_errors = nothing
     if (errors < str_len-1)
-        where_errors = sample(2:str_len, errors)
+        where_errors = sample(2:str_len, errors, replace=false)
     else
         where_errors = 2:str_len
     end
@@ -48,8 +48,34 @@ function genConnectedGrammar(N::Int, edges::Int)
     done = false 
     grammar = nothing
     while !done 
-        # println("try")
-        grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], N^2 - edges))), N, N)
+        grammar = reshape(shuffle(vcat(repeat([1], edges), 
+        repeat([0], N^2 - edges))), N, N)
+        if checkConnected(grammar) 
+            done = true 
+        end 
+    end 
+    return grammar 
+end
+
+function genConnectedGrammarNoLoops(N::Int, edges::Int)
+    done = false 
+    grammar = zeros(N, N)
+    while !done 
+        if edges > (N^2 - N)
+            return "ERROR: Edges to large to construct with no loops"
+        end
+
+        links = shuffle(vcat(repeat([1], edges), repeat([0], N^2 - N - edges)))
+        for i in 1:N 
+            for j in 1:N 
+                if i == j 
+                    grammar[i, j] = 0 
+                else 
+                    grammar[i, j] = pop!(links)
+                end
+            end
+        end
+
         if checkConnected(grammar) 
             done = true 
         end 
@@ -58,7 +84,6 @@ function genConnectedGrammar(N::Int, edges::Int)
 end
 
 function grammarEntropy(grammar)
-        # get topological entropy (dominant eigenval of adjacency matrix)
         topEntropy = abs(eigvals(grammar)[end])
         return topEntropy
 end 
