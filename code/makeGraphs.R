@@ -1,6 +1,6 @@
 library(tidyverse)
 
-dat <- read_csv("../data/change_3.csv")
+dat <- read_csv("../data/change.csv")
 
 dat <- filter(dat, id != 0)
 
@@ -16,4 +16,4 @@ p <- ggplot(dat) +
     ylab("Change over training") +
     theme_bw()
 
-ggsave("../graphs/change_plot_noLoops.png", dpi=900)
+ggsave("../graphs/change_3_graph.png", dpi=900)
