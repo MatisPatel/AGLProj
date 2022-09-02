@@ -58,7 +58,7 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
     # args = Args()
-    global model = Chain(
+    model = Chain(
         Dense(input_len, Int(ceil(input_len)), relu),
         # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
         Dropout(0.1),
@@ -67,7 +67,6 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     )
     opt = ADAM(0.00001)
 
-    global df, indx, propTests
     df = df[shuffle(1:size(df, 1)), :];
     alphabet = collect('a':'z')[1:Int(n)]
 
@@ -123,18 +122,82 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     return (change0, change1)::Tuple{Float64, Float64}
 end
 
-println("Loading Data...")
-datdir = "../data/stringsNoLoops_5/"
-# files = shuffle(readdir(datdir))
-files = readdir(datdir)
 
-println("Loaded")
+function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epochs::Int64)
+    df = CSV.read(string(datdir, f), DataFrame)
 
-println("Compiling function...")
-of = files[1]
-ofcut = of[1:end-4]
-oflist = split.(split(ofcut, "_"), "=")
-oflist = [[i[1], parse(Float64, i[2])] for i in oflist]
-ofDict = Dict(oflist)
-learnGrammar(of, datdir, Int(ofDict["n"]), 1)
-println("Compiled")
+    batchsize = 15 
+    propTests = 0.3
+    indx  = Int(floor(length(df.string)*(1-propTests)))
+    epochLength = Int(ceil(indx/batchsize))::Int64
+
+    output_len = maximum(df.errors)::Int64
+    input_len = Int(n*length(df.string[1]))::Int64
+
+    df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
+
+    # args = Args()
+    # model = Chain(
+    #     Dense(input_len, Int(ceil(input_len)), relu),
+    #     # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
+    #     Dropout(0.1),
+    #     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
+    #     Dense(Int(ceil(input_len)), output_len, sigmoid)
+    # )
+    # opt = ADAM(0.00001)
+    opt = Descent(0.00001)
+
+    df = df[shuffle(1:size(df, 1)), :];
+    alphabet = collect('a':'z')[1:Int(n)]
+
+    strings = [Float64.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in df.string]
+
+    propTests = 0.2 
+    indx  = Int(floor(length(df.string)*(1-propTests)))
+    train_X = strings[1:indx]
+    train_Y = df.encodedErrors[1:indx]' 
+    test_X = strings[indx+1:end]
+    test_Y = df.errors[indx+1:end]'
+
+    model(strings[1])
+
+    test_X = cat(test_X..., dims=2)
+    # train_dat = ([(cat(train_X[i]..., dims=2),  train_Y[i]') for i in Iterators.partition(1:length(train_X), batchsize)])
+    train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batchsize)])::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
+
+    lossVec = []
+    valVec = []
+    # println("Training...")
+
+    # n_epochs = 500::Int64
+
+    startAcc0 , startAcc1 = calcAcc(test_X, test_Y);
+
+    @time begin
+        for epoch in 1:n_epochs
+            local l
+            # println(epoch)
+            for (bnum, d) in enumerate(train_dat)
+                # println(bnum)
+                gs = gradient(Flux.params(model)) do 
+                    l = loss(d[1], d[2])
+                end 
+                Flux.update!(opt, Flux.params(model), gs)
+            end 
+        push!(lossVec, l)
+        # modout = model(test_X) .>= 0.5
+        # categories = cumprod(modout, dims=1)
+        # preds = sum(categories, dims=1)
+        # # preds = round.(Int, preds)
+        # acc = sqrt(Flux.mse(preds, test_Y))
+        # push!(valVec, acc)
+        end
+    end
+
+    endAcc0 , endAcc1 = calcAcc(test_X, test_Y);
+
+    change0 = endAcc0 - startAcc0
+    change1 = endAcc1 - startAcc1
+
+    return (change0, change1)::Tuple{Float64, Float64}
+end

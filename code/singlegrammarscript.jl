@@ -42,7 +42,8 @@ global model = Chain(
     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
     Dense(Int(ceil(input_len)), output_len, sigmoid)
 )
-opt = ADAM(0.0001)
+
+opt = Adam(0.0001)
 
 global df, indx, propTests
 df = df[shuffle(1:size(df, 1)), :];
@@ -67,7 +68,7 @@ lossVec = []
 valVec = []
 println("Training...")
 
-n_epochs = 1000
+n_epochs = 100
 modout = model(test_X) .>= 0.5
 categories = cumprod(modout, dims=1)
 preds = sum(categories, dims=1)
@@ -76,6 +77,7 @@ startAcc1 = sum((preds .== test_Y) .| (preds .== (test_Y.+1)) .| (preds .== (tes
 
 @time begin
 for epoch in 1:n_epochs
+    train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(shuffle(1:length(train_X)), batchsize)])
     local l
     println(epoch)
     for (bnum, d) in enumerate(train_dat)
