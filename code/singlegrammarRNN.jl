@@ -30,8 +30,8 @@ df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
 # RNN test
 model = Chain(
-    RNN(6 => 36, relu),
-    Dense(36 => 10, sigmoid)
+    RNN(6 => 10, relu),
+    Dense(10 => 10, sigmoid)
 )
 
 opt = ADAM(0.0001)
@@ -102,3 +102,5 @@ change1 = endAcc1 - startAcc1
 
 rnnVal = valVec
 rnnLoss =lossVec
+
+plot([ffnVal, rnnVal], label=["ffn" "rnn"])

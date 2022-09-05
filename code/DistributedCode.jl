@@ -21,21 +21,21 @@ OPENBLAS_NUM_THREADS=6
 #     device::Function = gpu  # set as gpu, if gpu available
 # end
 
-function loss(x::Matrix{Float64}, y::LinearAlgebra.Adjoint{Int64, Vector{Int64}})
-    # modout = model(x) .>= 0.5
-    # categories = cumprod(modout, dims=1)
-    # preds = sum(categories, dims=1)
-    return Flux.mse(model(x), y)::Float64
-end
+# function loss(x::Matrix{Float64}, y::LinearAlgebra.Adjoint{Int64, Vector{Int64}})
+#     # modout = model(x) .>= 0.5
+#     # categories = cumprod(modout, dims=1)
+#     # preds = sum(categories, dims=1)
+#     return Flux.mse(model(x), y)::Float64
+# end
 
-function loss(x::Matrix{Float64}, y::LinearAlgebra.Adjoint{Float64, Matrix{Float64}})
-    # modout = model(x) .>= 0.5
-    # categories = cumprod(modout, dims=1)
-    # preds = sum(categories, dims=1)
-    return Flux.mse(model(x), y)::Float64
-end
+# function loss(x::Matrix{Float64}, y::LinearAlgebra.Adjoint{Float64, Matrix{Float64}})
+#     # modout = model(x) .>= 0.5
+#     # categories = cumprod(modout, dims=1)
+#     # preds = sum(categories, dims=1)
+#     return Flux.mse(model(x), y)::Float64
+# end
 
-function calcAcc(test_X::Matrix{Float64}, test_Y::LinearAlgebra.Adjoint{Int64, Vector{Int64}})
+function calcAcc(test_X::Matrix{Float64}, test_Y::LinearAlgebra.Adjoint{Int64, Vector{Int64}}, model)
     modout = model(test_X) .>= 0.5
     categories = cumprod(modout, dims=1)
     preds = sum(categories, dims=1)
@@ -91,7 +91,7 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
 
     # n_epochs = 500::Int64
 
-    startAcc0 , startAcc1 = calcAcc(test_X, test_Y);
+    startAcc0 , startAcc1 = calcAcc(test_X, test_Y, model);
 
     @time begin
         for epoch in 1:n_epochs
@@ -114,16 +114,16 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
         end
     end
 
-    endAcc0 , endAcc1 = calcAcc(test_X, test_Y);
+    endAcc0 , endAcc1 = calcAcc(test_X, test_Y, model);
 
     change0 = endAcc0 - startAcc0
     change1 = endAcc1 - startAcc1
 
-    return (change0, change1)::Tuple{Float64, Float64}
+    return (change0, change1)::Tuple{Float64, Float64, Float64, Float64}
 end
 
 
-function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epochs::Int64)
+function trainModelOnGrammar(datdir::String, f::String, model, n::Int64, n_epochs::Int64)
     df = CSV.read(string(datdir, f), DataFrame)
 
     batchsize = 15 
@@ -145,7 +145,7 @@ function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epoch
     #     Dense(Int(ceil(input_len)), output_len, sigmoid)
     # )
     # opt = ADAM(0.00001)
-    opt = Descent(0.00001)
+    opt = ADAM(0.0001)
 
     df = df[shuffle(1:size(df, 1)), :];
     alphabet = collect('a':'z')[1:Int(n)]
@@ -171,7 +171,7 @@ function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epoch
 
     # n_epochs = 500::Int64
 
-    startAcc0 , startAcc1 = calcAcc(test_X, test_Y);
+    startAcc0 , startAcc1 = calcAcc(test_X, test_Y, model);
 
     @time begin
         for epoch in 1:n_epochs
@@ -180,11 +180,11 @@ function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epoch
             for (bnum, d) in enumerate(train_dat)
                 # println(bnum)
                 gs = gradient(Flux.params(model)) do 
-                    l = loss(d[1], d[2])
+                    l = loss(d[1], d[2], model)
                 end 
                 Flux.update!(opt, Flux.params(model), gs)
             end 
-        push!(lossVec, l)
+        # push!(lossVec, l)
         # modout = model(test_X) .>= 0.5
         # categories = cumprod(modout, dims=1)
         # preds = sum(categories, dims=1)
@@ -194,10 +194,10 @@ function trainModelOnGrammar(f::String, model, datdir::String, n::Int64, n_epoch
         end
     end
 
-    endAcc0 , endAcc1 = calcAcc(test_X, test_Y);
+    endAcc0 , endAcc1 = calcAcc(test_X, test_Y, model);
 
     change0 = endAcc0 - startAcc0
     change1 = endAcc1 - startAcc1
 
-    return (change0, change1)::Tuple{Float64, Float64}
+    return (change0, change1, startAcc0, endAcc0)::Tuple{Float64, Float64, Float64, Float64}
 end

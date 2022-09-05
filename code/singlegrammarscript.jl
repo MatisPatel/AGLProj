@@ -35,15 +35,20 @@ input_len = 6*11
 df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
 # args = Args()
-global model = Chain(
-    Dense(input_len, Int(ceil(input_len)), relu),
-    # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
-    Dropout(0.1),
-    # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
-    Dense(Int(ceil(input_len)), output_len, sigmoid)
-)
+# global model = Chain(
+#     Dense(66, 36, relu),
+#     # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
+#     # Dropout(0.1),
+#     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
+#     Dense(36, 10, sigmoid)
+# )
 
-opt = Adam(0.0001)
+global model = Chain(
+    Parallel(vcat, p1=Dense(66, 18, relu), p2=Dense(66,18, relu)), 
+    Dense(36, 10, sigmoid)
+    )
+
+opt = ADAM(0.0001)
 
 global df, indx, propTests
 df = df[shuffle(1:size(df, 1)), :];
@@ -118,3 +123,6 @@ end
 outDat = DataFrame(Dict("strings" => df.string[indx+1:end], "truth" => vec([x for x in test_Y]), "preds" => vec([x for x in preds])))
 
 CSV.write("../data/simgle_model_out.csv", outDat)
+
+ffnLoss2 = lossVec 
+ffnVal2 = valVec
