@@ -96,14 +96,14 @@ for i in 0:1:17 # bring it up to 25 in each side of the layer from 8, total 75 (
     push!(modList, model)
 end
 
-for i in 0:1:17 # bring it up to 25 in each side of the layer from 8, total 75 (from 24)
-    model = Chain( 
-        Parallel(vcat, p1=Dense(55, 8+i, relu), p2=Dense(55,8+i, relu), p3=Dense(55, 8+i, relu)),
-        Parallel(vcat, p1=Dense(8+i, 8+i, relu), p2=Dense(8+i,8+i, relu), p3=Dense(8+i, 8+i, relu)),
-        Dense((8+i)*3, 10, sigmoid)
-        )
-    push!(modList, model)
-end
+#for i in 0:1:17 # bring it up to 25 in each side of the layer from 8, total 75 (from 24)
+#    model = Chain( 
+#        Parallel(vcat, p1=Dense(55, 8+i, relu), p2=Dense(55,8+i, relu), p3=Dense(55, 8+i, relu)),
+#        Parallel(vcat, p1=Dense(8+i, 8+i, relu), p2=Dense(8+i,8+i, relu), p3=Dense(8+i, 8+i, relu)),
+#        Dense((8+i)*3, 10, sigmoid)
+#        )
+#    push!(modList, model)
+#end
 
 #for i in 0:1:50 #cannot calculate network cost for these at the moment
 #    model = Chain(
@@ -139,7 +139,7 @@ for num in eachindex(modList)
 end
 
 output = DataFrame(Model = modList, Prescore = preScores, PostScores = postScores, C0List = c0List, C1List = c1List, StartAcc = startAcc, EndAcc = endAcc)
-CSV.write("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/ParallelScorerOutput.csv", output)
+CSV.write("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/DeepAndParallelScorerOutput_id=42_n=5_conn=10_TE=2.1478990357047856.csv", output)
 
 # v = collect(Iterators.flatten(Flux.params(model)))
 # histogram(v)
