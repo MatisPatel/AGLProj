@@ -3,7 +3,7 @@ using BSON
 using CSV
 using ProgressMeter
 
-BSON.@load "../data/grammarsNoLoops_5.bson" data alphSize
+BSON.@load "C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/grammarsNoLoops_5.bson" data alphSize
 ALPHABET = 'a':'z'
 
 @showprogress for (i, entry) in enumerate(data)
@@ -21,5 +21,5 @@ ALPHABET = 'a':'z'
     rename!(dataset, [:string, :numbers, :errors])
     dataset[!, :errors] = length.(dataset[!, :errors])
 
-    CSV.write(string("../data/stringsNoLoops_5/", "id=", i, "_n=", N, "_conn=", entry[2], "_TE=", entry[3], ".csv"), dataset)
+    CSV.write(string("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/stringsNoLoops_5/", "id=", i, "_n=", N, "_conn=", entry[2], "_TE=", entry[3], ".csv"), dataset)
 end

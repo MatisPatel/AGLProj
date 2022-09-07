@@ -21,7 +21,7 @@ function loss(x, y)
     return Flux.mse(model(x), y)
 end
 
-df = CSV.read("../data/strings_6/id=192_n=6_conn=25_TE=4.301858916713256.csv", DataFrame)
+df = CSV.read("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/strings_6/id=192_n=6_conn=25_TE=4.301858916713256.csv", DataFrame)
 
 n_epochs = 1
 batchsize = 15 
@@ -122,7 +122,7 @@ end
 
 outDat = DataFrame(Dict("strings" => df.string[indx+1:end], "truth" => vec([x for x in test_Y]), "preds" => vec([x for x in preds])))
 
-CSV.write("../data/simgle_model_out.csv", outDat)
+CSV.write("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/single_model_out.csv", outDat)
 
 ffnLoss2 = lossVec 
 ffnVal2 = valVec

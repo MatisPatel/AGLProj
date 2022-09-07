@@ -33,4 +33,4 @@ df = []
     end
 end
 
-bson(string("../data/grammarsNoLoops_", N, ".bson"), data=df, alphSize = N)
+bson(string("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/grammarsNoLoops_", N, ".bson"), data=df, alphSize = N)

@@ -15,7 +15,7 @@ function loss(x, y)
     return Flux.mse(model(x)[:,:,end], y)
 end
 
-df = CSV.read("../data/strings_6/id=192_n=6_conn=25_TE=4.301858916713256.csv", DataFrame)
+df = CSV.read("C:/Users/kv301/OneDrive - University of Cambridge/Documents/PhD Year 2/Major Transitions Project/AGLProj/data/strings_6/id=192_n=6_conn=25_TE=4.301858916713256.csv", DataFrame)
 
 n_epochs = 1
 batchsize = 15 
@@ -103,4 +103,4 @@ change1 = endAcc1 - startAcc1
 rnnVal = valVec
 rnnLoss =lossVec
 
-plot([ffnVal, rnnVal], label=["ffn" "rnn"])
+plot([ffnVal2, rnnVal], label=["ffn" "rnn"])
