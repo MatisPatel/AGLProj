@@ -19,29 +19,51 @@ function calculateNetworkCost(model, thresh=0.1)
     return numLayers + numNonZero + numNeurons
 end
 
-datdir = "../data/stringsNoLoops_5"
-file = "/id=41_n=5_conn=10_TE=2.147899035704789.csv"
+datdir = "../data/stringsNoLoops_5/"
+file = "id=41_n=5_conn=10_TE=2.147899035704789.csv"
+files = shuffle(readdir(datdir))[1:10]
 
-modList = []
-for i in 1:1:50
-    model = Chain(Dense(55, 24+i, relu), Dense(24+i, 10, sigmoid))
-    push!(modList, model)
-end
 
-preScores = zeros(length(modList))
-postScores = zeros(length(modList))
-startAcc = zeros(length(modList))
-endAcc = zeros(length(modList))
-c0List = zeros(length(modList))
-c1List = zeros(length(modList))
+model1 = Chain(
+    Dense(55, 50, relu), 
+    Dense(50, 10, sigmoid)
+)
 
-for num in eachindex(modList)
+model2 = Chain(
+    Dense(55, 25, relu), 
+    Dense(25, 25, relu),
+    Dense(25, 10, sigmoid)
+)
+
+TElist = zeros(length(files))
+
+preScores = zeros(length(files))
+postScores = zeros(length(files))
+startAcc = zeros(length(files))
+endAcc = zeros(length(files))
+c0List = zeros(length(files))
+c1List = zeros(length(files))
+
+preScores2 = zeros(length(files))
+postScores2 = zeros(length(files))
+startAcc2 = zeros(length(files))
+endAcc2 = zeros(length(files))
+c0List2 = zeros(length(files))
+c1List2 = zeros(length(files))
+
+for num in eachindex(files)
+    f = files[num]
+    println(f)
+    fcut = f[1:end-4]
+    flist = split.(split(fcut, "_"), "=")
+    flist = [[i[1], parse(Float64, i[2])] for i in flist]
+    fDict = Dict(flist)
+    TElist[num] = fDict["TE"][1]
+
     println("Running: ", num)
     model = modList[num]
     preScores[num] = calculateNetworkCost(model)
-    c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(datdir, file, model, 5, 500)
+    c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(datdir, f, model1, 5, 500)
+    c0List2[num], c1List2[num], startAcc2[num], endAcc2[num] = trainModelOnGrammar(datdir, f, model2, 5, 500)
     postScores[num] = calculateNetworkCost(model)
 end
-
-# v = collect(Iterators.flatten(Flux.params(model)))
-# histogram(v)
