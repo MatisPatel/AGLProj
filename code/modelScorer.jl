@@ -63,7 +63,6 @@ for num in eachindex(files)
     println("Running: ", num)
     model = modList[num]
     preScores[num] = calculateNetworkCost(model)
-    c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(datdir, f, model1, 5, 500)
-    c0List2[num], c1List2[num], startAcc2[num], endAcc2[num] = trainModelOnGrammar(datdir, f, model2, 5, 500)
+    c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(datdir, f, model, 5, 500)
     postScores[num] = calculateNetworkCost(model)
 end

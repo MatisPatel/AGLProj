@@ -173,7 +173,7 @@ function trainModelOnGrammar(datdir::String, f::String, model, n::Int64, n_epoch
 
     startAcc0 , startAcc1 = calcAcc(test_X, test_Y, model);
 
-    @time begin
+    begin
         for epoch in 1:n_epochs
             local l
             # println(epoch)
@@ -200,4 +200,21 @@ function trainModelOnGrammar(datdir::String, f::String, model, n::Int64, n_epoch
     change1 = endAcc1 - startAcc1
 
     return (change0, change1, startAcc0, endAcc0)::Tuple{Float64, Float64, Float64, Float64}
+end
+
+sqnorm(x) = sum(abs2, x);
+
+function loss(x, y, model)
+    # modout = model(x) .>= 0.5
+    # categories = cumprod(modout, dims=1)
+    # preds = sum(categories, dims=1)
+    return Flux.mse(model(x), y) #+ 0.01*sum(sqnorm, Flux.params(model));
+end
+
+function calculateNetworkCost(model, thresh=0.1) 
+    numLayers = length(model)
+    P = collect(Iterators.flatten(Flux.params(model)))
+    numNonZero = length(P[P.>thresh])
+    numNeurons = sum([sum(Flux.nfan(size(layer.weight))) for layer in model.layers])
+    return numLayers + numNonZero + numNeurons
 end
