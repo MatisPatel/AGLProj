@@ -214,7 +214,7 @@ end
 function calculateNetworkCost(model, thresh=0.1) 
     numLayers = length(model)
     P = collect(Iterators.flatten(Flux.params(model)))
-    numNonZero = length(P[P.>thresh])
+    numNonZero = length(P[abs(P).>thresh])
     numNeurons = sum([sum(Flux.nfan(size(layer.weight))) for layer in model.layers])
     return numLayers + numNonZero + numNeurons
 end
