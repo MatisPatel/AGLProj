@@ -18,7 +18,7 @@ end
 
 @everywhere begin 
     modelList = []
-    for i in 4:8
+    for i in 20:80
         for j in 1:4
             splits = Int.(sort([floor(i*(k+1)/j) - floor(i*k / j) for k in 1:j], rev=true))
             if (length(splits) == 1)
@@ -33,28 +33,30 @@ end
                     Dense(splits[end], 10, sigmoid)
                 )
             end
-            push!(modelList, model)
+            push!(modelList, (model, i, j))
         end
     end
 
 
-    TElist = zeros(length(files))
-    for num in eachindex(files)
-        f = files[num]
-        fcut = f[1:end-4]
-        flist = split.(split(fcut, "_"), "=")
-        flist = [[i[1], parse(Float64, i[2])] for i in flist]
-        fDict = Dict(flist)
-        TElist[num] = fDict["TE"][1]
-    end
+    # TElist = zeros(length(files))
+    # for num in eachindex(files)
+    #     f = files[num]
+    #     fcut = f[1:end-4]
+    #     flist = split.(split(fcut, "_"), "=")
+    #     flist = [[i[1], parse(Float64, i[2])] for i in flist]
+    #     fDict = Dict(flist)
+    #     TElist[num] = fDict["TE"][1]
+    # end
 end
 
 modelChange0 = SharedArray(zeros(length(modelList)))
 modelChange1 = SharedArray(zeros(length(modelList)))
 modelScores = SharedArray(zeros(length(modelList)))
+numberNeurons = SharedArray(zeros(length(modelList)))
+numberLayers = SharedArray(zeros(length(modelList)))
 
 @sync @distributed for i in eachindex(modelList)
-    model = modelList[i]
+    model, numNeurons, numLayers = modelList[i]
     preScores = zeros(length(files))
     postScores = zeros(length(files))
     startAcc = zeros(length(files))
@@ -62,6 +64,7 @@ modelScores = SharedArray(zeros(length(modelList)))
     c0List = zeros(length(files))
     c1List = zeros(length(files))
 
+    println("Training model with ", numNeurons , " neurons and ", numLayers, " layers")
     @showprogress for num in eachindex(files)
         f = files[num]
         fcut = f[1:end-4]
@@ -78,14 +81,16 @@ modelScores = SharedArray(zeros(length(modelList)))
     modelChange0[i] = mean(c0List)
     modelChange1[i] = mean(c1List)
     modelScores[i] = mean(postScores)
+    numberNeurons[i] = numNeurons
+    numberLayers[i] = numLayers
 end
 
-modelStrings = [string(model) for model in modelList]
+modelStrings = [string(model[1]) for model in modelList]
 
 println("Making DF...")
-changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings))
+changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings, "neurons" => numberNeurons, "layers" => numberLayers))
 println("Saving DF...")
-CSV.write(string("../data/", "permuteModelData_2layer_3grammars.csv"), changeDat)
+CSV.write(string("../data/", "permuteNeuronsAndLayers_3grammars_noLoops.csv"), changeDat)
 
 # normaliseScores(x) = (maximum(x) .- x)/(maximum(x) - minimum(x)) 
 # normaliseScores(x, y) = (maximum(y) .- x)/(maximum(y) - minimum(y)) 
