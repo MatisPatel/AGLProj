@@ -58,18 +58,18 @@ for i in 0:1:50 # 2-layer net
     end
 end
 
-#for i in 0:1:50 # 3-layer net
-#    for j in 0:1:50
-#        for h in 0:1:50
-#            model = Chain(Dense(55, 24+i, relu), 
-#            Dense(24+i, 24+j, relu), 
-#            Dense(24+j, 24+h, relu), 
-#            Dense(24+h, 10, sigmoid)
-#            )
-#            push!(modList, model)
-#        end
-#    end
-#end
+for i in 0:1:50 # 3-layer net
+    for j in 0:1:50
+        for h in 0:1:50
+            model = Chain(Dense(55, 24+i, relu), 
+            Dense(24+i, 24+j, relu), 
+            Dense(24+j, 24+h, relu), 
+            Dense(24+h, 10, sigmoid)
+            )
+            push!(modList, model)
+        end
+    end
+end
 
 for i in 0:1:25 # bring it up to 37 in each side of the layer from 12, total 74 (from 24), as above
     model = Chain( 
