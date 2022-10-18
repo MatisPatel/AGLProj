@@ -12,13 +12,13 @@ end
     println("Loading Data...")
     datdir = "../data/stringsNoLoops_5/"
     # files = shuffle(readdir(datdir))
-    files = shuffle!(readdir(datdir))[1:3]
+    files = shuffle!(readdir(datdir))[1:10]
     println("Loaded")
 end
 
 @everywhere begin 
     modelList = []
-    for i in 20:80
+    for i in 4:100
         for j in 1:4
             splits = Int.(sort([floor(i*(k+1)/j) - floor(i*k / j) for k in 1:j], rev=true))
             if (length(splits) == 1)
@@ -90,7 +90,7 @@ modelStrings = [string(model[1]) for model in modelList]
 println("Making DF...")
 changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings, "neurons" => numberNeurons, "layers" => numberLayers))
 println("Saving DF...")
-CSV.write(string("../data/", "permuteNeuronsAndLayers_3grammars_noLoops.csv"), changeDat)
+CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_noLoops.csv"), changeDat)
 
 # normaliseScores(x) = (maximum(x) .- x)/(maximum(x) - minimum(x)) 
 # normaliseScores(x, y) = (maximum(y) .- x)/(maximum(y) - minimum(y)) 

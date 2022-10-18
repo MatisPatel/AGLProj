@@ -217,4 +217,21 @@ function calculateNetworkCost(model, thresh=0.1)
     numNonZero = length(P[abs.(P).>thresh])
     numNeurons = sum([sum(Flux.nfan(size(layer.weight))) for layer in model.layers])
     return numLayers + numNonZero + numNeurons
+end 
+
+function createModel(numNeurons, numLayers)
+    splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
+    if (length(splits) == 1)
+        model = Chain(
+            Dense(55, splits[1], relu),
+            Dense(splits[end], 10, sigmoid)
+        )
+    else
+        model = Chain(
+            Dense(55, splits[1], relu),
+            [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...,
+            Dense(splits[end], 10, sigmoid)
+        )
+    end
+    return (model, numNeurons, numLayers)
 end
