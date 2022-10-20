@@ -1,2 +1,3 @@
 *.csv
 *KV.jl
+*.bson 

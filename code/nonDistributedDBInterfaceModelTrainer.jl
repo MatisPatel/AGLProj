@@ -37,7 +37,7 @@ end
 
 println("Opening DB Connection")
 con = DBInterface.connect(MySQL.Connection, "localhost",
-"user_name", "password", db = "modeloutput") # set up connection - insert your user and pass
+"root", "Skipping Partition Buckwheat", db = "MODELOUTPUT") # set up connection - insert your user and pass
 
 println("Creating DB Table")
 DBInterface.execute(con, "DROP TABLE IF EXISTS models;") #drop any existing table, just in case.
