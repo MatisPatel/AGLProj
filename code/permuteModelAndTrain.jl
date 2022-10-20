@@ -10,34 +10,28 @@ end
 
 @everywhere begin
     println("Loading Data...")
-    datdir = "../data/stringsNoLoops_5/"
+    datfolder = "loops=false_n=5_length=11_classes=1"
+    datdir = "data"
+    datPath = joinpath("..", datdir, datfolder)
     # files = shuffle(readdir(datdir))
-    files = shuffle!(readdir(datdir))[1:10]
+    files = shuffle!(readdir(datPath))[1:10]
     println("Loaded")
+    # extract spec from folder name 
+    folderDict = Dict(split.(split(datfolder, "_"), "="))
+    lengthStrings = parse(Int, folderDict["length"])
+    lengthAlphabet = parse(Int, folderDict["n"])
+    numClasses = parse(Int, folderDict["classes"])
+    isLooped = parse(Bool, folderDict["loops"])
 end
 
 @everywhere begin 
     modelList = []
-    for i in 4:100
-        for j in 1:4
-            splits = Int.(sort([floor(i*(k+1)/j) - floor(i*k / j) for k in 1:j], rev=true))
-            if (length(splits) == 1)
-                model = Chain(
-                    Dense(55, splits[1], relu),
-                    Dense(splits[end], 10, sigmoid)
-                )
-            else
-                model = Chain(
-                    Dense(55, splits[1], relu),
-                    [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...,
-                    Dense(splits[end], 10, sigmoid)
-                )
-            end
-            push!(modelList, (model, i, j))
+    for numNeurons in 4:100
+        for numLayers in 1:4
+            model = createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet )
+            push!(modelList, (model, numNeurons, numLayers))
         end
     end
-
-
     # TElist = zeros(length(files))
     # for num in eachindex(files)
     #     f = files[num]
@@ -73,7 +67,8 @@ numberLayers = SharedArray(zeros(length(modelList)))
         fDict = Dict(flist)
 
         preScores[num] = calculateNetworkCost(model)
-        c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(datdir, f, model, 5, 200)
+        filePath = joinpath(datPath, f)
+        @time c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(filePath, model, lengthAlphabet, 100)
         postScores[num] = calculateNetworkCost(model)
         Flux.reset!(model)
     end
@@ -90,7 +85,7 @@ modelStrings = [string(model[1]) for model in modelList]
 println("Making DF...")
 changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings, "neurons" => numberNeurons, "layers" => numberLayers))
 println("Saving DF...")
-CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_noLoops.csv"), changeDat)
+CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv"), changeDat)
 
 # normaliseScores(x) = (maximum(x) .- x)/(maximum(x) - minimum(x)) 
 # normaliseScores(x, y) = (maximum(y) .- x)/(maximum(y) - minimum(y)) 

@@ -123,8 +123,8 @@ function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
 end
 
 
-function trainModelOnGrammar(datdir::String, f::String, model, n::Int64, n_epochs::Int64)
-    df = CSV.read(string(datdir, f), DataFrame)
+function trainModelOnGrammar(filepath::String, model, n::Int64, n_epochs::Int64)
+    df = CSV.read(filepath, DataFrame)
 
     batchsize = 15 
     propTests = 0.3
@@ -211,6 +211,13 @@ function loss(x, y, model)
     return Flux.mse(model(x), y) #+ 0.01*sum(sqnorm, Flux.params(model));
 end
 
+function lossBinary(x, y, model)
+    # modout = model(x) .>= 0.5
+    # categories = cumprod(modout, dims=1)
+    # preds = sum(categories, dims=1)
+    return Flux.logitbinarycrossentropy(model(x), y) #+ 0.01*sum(sqnorm, Flux.params(model));
+end
+
 function calculateNetworkCost(model, thresh=0.1) 
     numLayers = length(model)
     P = collect(Iterators.flatten(Flux.params(model)))
@@ -219,19 +226,19 @@ function calculateNetworkCost(model, thresh=0.1)
     return numLayers + numNonZero + numNeurons
 end 
 
-function createModel(numNeurons, numLayers)
+function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet)
     splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
     if (length(splits) == 1)
         model = Chain(
-            Dense(55, splits[1], relu),
-            Dense(splits[end], 10, sigmoid)
+            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+            Dense(splits[end], numClasses, sigmoid)
         )
     else
         model = Chain(
-            Dense(55, splits[1], relu),
+            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
             [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...,
-            Dense(splits[end], 10, sigmoid)
+            Dense(splits[end], numClasses, sigmoid)
         )
     end
-    return (model, numNeurons, numLayers)
+    return model
 end

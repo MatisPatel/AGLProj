@@ -11,9 +11,9 @@ ALPHABET = 'a':'z'
     G = entry[end]
     errG = G .== 0.0
 
-    gr = [makeErrString(alphabet, G, errG, 11, 0) for i in 1:1581]
+    gr = [makeErrString(alphabet, G, errG, 11, 0) for i in 1:500]
 
-    ungr = collect(Iterators.flatten([[makeErrString(alphabet, G, errG, 11, n) for i in 1:500] for n in 1:10]))
+    ungr = collect(Iterators.flatten([[makeErrString(alphabet, G, errG, 11, n) for i in 1:500] for n in 1:1]))
 
     stringDat = vcat(gr, ungr)
 
@@ -21,5 +21,5 @@ ALPHABET = 'a':'z'
     rename!(dataset, [:string, :numbers, :errors])
     dataset[!, :errors] = length.(dataset[!, :errors])
 
-    CSV.write(string("../data/stringsNoLoops_5/", "id=", i, "_n=", N, "_conn=", entry[2], "_TE=", entry[3], ".csv"), dataset)
+    CSV.write(string("../data/stringsNoLoops_5N_2classes/", "id=", i, "_n=", entry[1], "_conn=", entry[2], "_TE=", entry[3], ".csv"), dataset)
 end
