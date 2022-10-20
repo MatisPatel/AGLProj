@@ -14,7 +14,7 @@ end
     datdir = "data"
     datPath = joinpath("..", datdir, datfolder)
     # files = shuffle(readdir(datdir))
-    files = shuffle!(readdir(datPath))[1:10]
+    files = shuffle!(readdir(datPath))[1:20]
     println("Loaded")
     # extract spec from folder name 
     folderDict = Dict(split.(split(datfolder, "_"), "="))
@@ -68,7 +68,7 @@ numberLayers = SharedArray(zeros(length(modelList)))
 
         preScores[num] = calculateNetworkCost(model)
         filePath = joinpath(datPath, f)
-        @time c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(filePath, model, lengthAlphabet, 100)
+        c0List[num], c1List[num], startAcc[num], endAcc[num] = trainModelOnGrammar(filePath, model, lengthAlphabet, 200)
         postScores[num] = calculateNetworkCost(model)
         Flux.reset!(model)
     end
@@ -85,7 +85,7 @@ modelStrings = [string(model[1]) for model in modelList]
 println("Making DF...")
 changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings, "neurons" => numberNeurons, "layers" => numberLayers))
 println("Saving DF...")
-CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv"), changeDat)
+CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv"), changeDat) 
 
 # normaliseScores(x) = (maximum(x) .- x)/(maximum(x) - minimum(x)) 
 # normaliseScores(x, y) = (maximum(y) .- x)/(maximum(y) - minimum(y)) 
