@@ -1,6 +1,6 @@
 library(tidyverse)
 
-dat <- read_csv("../data/permuteNeuronsAndLayers_10grammars_noLoops.csv")
+dat <- read_csv("../data/200epochs_permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv")
 
 dat <- dat %>% 
 mutate(
@@ -15,7 +15,7 @@ p <- ggplot(dat) +
 p
 
 p2 <- ggplot(dat) + 
- geom_path(aes(neurons,  normScores*change0, colour = layers))
+ geom_path(aes(neurons,  change0, colour = layers))
 p2
 
 ggplot(dat) + 
