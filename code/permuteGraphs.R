@@ -1,6 +1,6 @@
 library(tidyverse)
 
-dat <- read_csv("../data/200epochs_permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv")
+dat <- read_csv("../data/allGrammars_2classes_noLoops_5.csv")
 
 dat <- dat %>% 
 mutate(
@@ -19,4 +19,4 @@ p2 <- ggplot(dat) +
 p2
 
 ggplot(dat) + 
-geom_point(aes(normScores, change0, colour=layers))
+geom_point(aes(layers, change0, colour=layers))

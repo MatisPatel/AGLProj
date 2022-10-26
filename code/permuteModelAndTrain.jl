@@ -1,3 +1,6 @@
+using Distributed 
+# addprocs(n) to add n extra workers 
+
 @everywhere begin
     using Flux 
     using Revise
@@ -14,7 +17,7 @@ end
     datdir = "data"
     datPath = joinpath("..", datdir, datfolder)
     # files = shuffle(readdir(datdir))
-    files = shuffle!(readdir(datPath))[1:20]
+    files = shuffle!(readdir(datPath))
     println("Loaded")
     # extract spec from folder name 
     folderDict = Dict(split.(split(datfolder, "_"), "="))
@@ -26,8 +29,8 @@ end
 
 @everywhere begin 
     modelList = []
-    for numNeurons in 4:100
-        for numLayers in 1:4
+    for numNeurons in 4:4:100
+        for numLayers in 1:2
             model = createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet )
             push!(modelList, (model, numNeurons, numLayers))
         end
@@ -85,7 +88,7 @@ modelStrings = [string(model[1]) for model in modelList]
 println("Making DF...")
 changeDat = DataFrame(Dict("change0"=> modelChange0, "change1" => modelChange1 , "scores"=> modelScores, "id" => modelStrings, "neurons" => numberNeurons, "layers" => numberLayers))
 println("Saving DF...")
-CSV.write(string("../data/", "permuteNeuronsAndLayers_10grammars_2classes_noLoops.csv"), changeDat) 
+CSV.write(string("../data/", "allGrammars_2classes_noLoops_5.csv"), changeDat) 
 
 # normaliseScores(x) = (maximum(x) .- x)/(maximum(x) - minimum(x)) 
 # normaliseScores(x, y) = (maximum(y) .- x)/(maximum(y) - minimum(y)) 
