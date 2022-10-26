@@ -35,7 +35,7 @@ ALPHABET = 'a':'z'
 numStrings = 10
 stringLength = 11
 numErrors = 1
-Random.seed!(2022) # set seed for generating IDs for strings AND more importantly for generating strings
+Random.seed!(2001) # set seed for generating IDs for strings AND more importantly for generating strings
 
 
 ## Database Preamble
