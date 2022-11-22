@@ -5,7 +5,7 @@ include("grammar.jl")
 N = 6 
 
 # connections to sample rom (approx to to TE) at N^2 the matrix is fully connected and maximum entropy.
-conn = 6:36 
+conn = 6:(N^2 - N) 
 
 # number of grammars at each level to make 
 numGrammars = 10 
@@ -17,7 +17,7 @@ df = []
 for numConn in conn 
     # gramVec = Matrix{Int64}[]
     for i in 1:numGrammars 
-        done = false
+        # done = false
         # while !done
             candidateGram = genConnectedGrammar(N, numConn)
             # if !(candidateGram in gramVec) 
