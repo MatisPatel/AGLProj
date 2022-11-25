@@ -44,6 +44,20 @@ function calcAcc(test_X::Matrix{Float64}, test_Y::LinearAlgebra.Adjoint{Int64, V
     return (acc0::Float64, acc1::Float64)::Tuple{Float64, Float64}
 end
 
+function calcAcc(test_X, test_Y, model)
+    # thresholds all prediciton of 0 or 1 in each output neuron
+    modout = model(test_X) .>= 0.5
+    # converts to truth encoding 
+    categories = cumprod(modout, dims=1)
+    # the actual number of errors predicted
+    preds = sum(categories, dims=1)
+    # calc prop of of exact predictions
+    acc0 = sum((preds .== test_Y))/length(test_Y)
+    # with +-1 class leeway 
+    acc1 = sum((preds .== test_Y) .| (preds .== (test_Y.+1)) .| (preds .== (test_Y.-1)))/length(test_Y)
+    return (acc0::Float64, acc1::Float64)::Tuple{Float64, Float64}
+end
+
 function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     df = CSV.read(string(datdir, f), DataFrame)
 
@@ -124,16 +138,22 @@ end
 
 
 function trainModelOnGrammar(filepath::String, model, n::Int64, n_epochs::Int64)
+    # loading the df from csv training data 
     df = CSV.read(filepath, DataFrame)
 
+    # batch size for each backprop update
     batchsize = 15 
+    # proportion of strings that will be in test group and not trained on
     propTests = 0.3
+    # index for cut between training and test groups
     indx  = Int(floor(length(df.string)*(1-propTests)))
-    epochLength = Int(ceil(indx/batchsize))::Int64
+    # epochLength = Int(ceil(indx/batchsize))::Int64
 
+    # determine size of output layer of network. 
     output_len = maximum(df.errors)::Int64
-    input_len = Int(n*length(df.string[1]))::Int64
+    # input_len = Int(n*length(df.string[1]))::Int64
 
+    # new col in df, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
     df.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in df.errors]
 
     # args = Args()
@@ -144,25 +164,31 @@ function trainModelOnGrammar(filepath::String, model, n::Int64, n_epochs::Int64)
     #     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
     #     Dense(Int(ceil(input_len)), output_len, sigmoid)
     # )
-    # opt = ADAM(0.00001)
+    # opt = ADAM(0.00001) 
+    # defining optimiser to use
     opt = ADAM(0.0001)
-
-    df = df[shuffle(1:size(df, 1)), :];
+    # shuffle for rows
+    df = df[shuffle(1:size(df, 1)), :]
+    # getting chars for alphabet
     alphabet = collect('a':'z')[1:Int(n)]
 
+    # one hot encoding of strings for training/testing
     strings = [Float64.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in df.string]
 
-    propTests = 0.2 
-    indx  = Int(floor(length(df.string)*(1-propTests)))
+    # splitting the data ito train/test and strings and truth. 
     train_X = strings[1:indx]
     train_Y = df.encodedErrors[1:indx]' 
     test_X = strings[indx+1:end]
     test_Y = df.errors[indx+1:end]'
 
+    # compile model call
     model(strings[1])
 
+    # 
     test_X = cat(test_X..., dims=2)
     # train_dat = ([(cat(train_X[i]..., dims=2),  train_Y[i]') for i in Iterators.partition(1:length(train_X), batchsize)])
+    
+    # list comp to make tuples for each batch 
     train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batchsize)])::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
 
     lossVec = []
@@ -170,7 +196,8 @@ function trainModelOnGrammar(filepath::String, model, n::Int64, n_epochs::Int64)
     # println("Training...")
 
     # n_epochs = 500::Int64
-
+    # startacc0 is proportion of strings exactly predicted.
+    # startacc1 is proportion of strings predicted within 1 class range.
     startAcc0 , startAcc1 = calcAcc(test_X, test_Y, model);
 
     begin
