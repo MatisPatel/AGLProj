@@ -22,22 +22,33 @@ function checkConnected(grammar)
     return sum(counts .== N) > 0
 end
 
+function checkTransitionsFull(grammar)
+    # println("check trans")
+    rowSums = sum(grammar, dims=2)
+    fullTrans = prod(rowSums .!= 0)
+    return fullTrans
+end
+
 function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
     done = false
     grammar = nothing
+
     if loops
 
         while !done
             grammar = reshape(shuffle(vcat(repeat([1], edges),
                     repeat([0], N^2 - edges))), N, N)
-            if checkConnected(grammar)
-                if sum(Diagonal(grammar)) >= 1 # added constraint so that it must have loops
-                    done = true
+            if checkTransitionsFull(grammar)
+                if checkConnected(grammar)
+                    if sum(Diagonal(grammar)) >= 1 # added constraint so that it must have loops
+                        done = true
+                    end
                 end
             end
         end
-        return grammar
+
     else
+
         if edges > (N^2 - N)
             return "ERROR: Edges to large to construct with no loops"
         end
@@ -50,42 +61,23 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
             grammar = reshape(shuffle(vcat(repeat([1], edges),
                     repeat([0], N^2 - edges))), N, N)
             #println(sum(Diagonal(grammar)))
-            if checkConnected(grammar)
-                if sum(Diagonal(grammar)) == 0 # added constraint so that it must not have loops
-                    done = true
+            if checkTransitionsFull(grammar)
+                if checkConnected(grammar)
+                    if sum(Diagonal(grammar)) == 0 # added constraint so that it must not have loops
+                        done = true
+                    end
                 end
             end
         end
-        # grammar = zeros(N, N)
-        # while !done 
-        #     if edges > (N^2 - N)
-        #         return "ERROR: Edges to large to construct with no loops"
-        #     end
 
-        #     links = shuffle(vcat(repeat([1], edges), repeat([0], N^2 - N - edges)))
-        #     for i in 1:N 
-        #         for j in 1:N 
-        #             if i == j 
-        #                 grammar[i, j] = 0 
-        #             else 
-        #                 grammar[i, j] = pop!(links)
-        #             end
-        #         end
-        #     end
-
-        #     if checkConnected(grammar) 
-        #         done = true 
-        #     end 
-        # end 
-        return grammar
     end
-
+    return grammar
 end
 
 ## Parameters
 
 # alphabet length 
-N = 6
+N = 4
 
 # connections to sample rom (approx to to TE) at N^2 the matrix is fully connected and maximum entropy.
 conn = N+1:N^2-N #keep getting error with only N connections

@@ -68,7 +68,7 @@ if dbConnectionBinary
 
     for i in 1:size(numGrammars)[1]
         
-        ## get transition matrix
+        ## get transition matrix 
         alphSize = numGrammars[i, 5]
         alphabet = ALPHABET[1:alphSize]
         grammarString = numGrammars[i, 6]
@@ -91,8 +91,8 @@ if dbConnectionBinary
         #println(grammarTableCreationQuery)
         for k in 1:numStrings
             for z in 0:numErrors
-                outputString = makeErrString(alphabet, transitionMatrix, errTransitionMatrix, 11, z)[1]
-                outputStringAsNum = makeErrString(alphabet, transitionMatrix, errTransitionMatrix, 11, z)[2]
+                outputString = makeErrString(alphabet, transitionMatrix, errTransitionMatrix, stringLength, z)[1]
+                outputStringAsNum = makeErrString(alphabet, transitionMatrix, errTransitionMatrix, stringLength, z)[2]
                 insertIntoQuery = string("INSERT INTO ", grammarID_db, " (grammarId, string, stringNumber, error, stringId) VALUES(\"",
                 numGrammars[i, 1], "\", \"",
                 outputString, "\", \"",
