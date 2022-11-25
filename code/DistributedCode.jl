@@ -44,6 +44,8 @@ function calcAcc(test_X::Matrix{Float64}, test_Y::LinearAlgebra.Adjoint{Int64, V
     return (acc0::Float64, acc1::Float64)::Tuple{Float64, Float64}
 end
 
+#make new function that takes model and string to return preds in above model
+
 function learnGrammar(f::String, datdir::String, n::Int64, n_epochs::Int64)
     df = CSV.read(string(datdir, f), DataFrame)
 
