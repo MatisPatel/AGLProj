@@ -30,21 +30,11 @@ using SharedArrays
 
 # Set up database
 
-dbName = "modeloutputdev100"
-
-# Do you want to re-run database creation? ****Do this for first time running on local machine****
-reCreateDB = false
-
-if reCreateDB
-    query = string("CREATE DATABASE ", dbName, ";")
-    DBInterface.execute(con, query)
-else
-    nothing
-end
+#dbName = "modeloutputdev100"
 
 println("Opening DB Connection")
-con = DBInterface.connect(MySQL.Connection, "insert",
-"user", "password", db = dbName) # set up connection
+con = DBInterface.connect(MySQL.Connection, "",
+"", "", db = "") # set up connection
 
 #######################
 ## SCRIPT PARAMETERS ##
@@ -57,16 +47,16 @@ ALPHABET = 'a':'z'
 alphabetLength = 6
 
 # connections to sample from (approx to to TE) at `alphabetLength`^2 the matrix is fully connected and maximum entropy.
-grammarConnections = alphabetLength*2:alphabetLength^2-alphabetLength #keep getting error with `alphabetLength` connections with no loops, so have made the lower limit 2*alphabetlength.
+grammarConnections = 15:15 #alphabetLength*2:alphabetLength^2-alphabetLength #keep getting error with `alphabetLength` connections with no loops, so have made the lower limit 2*alphabetlength.
 
 # Entropy rounding parameter
 roundingPrecision = 5 # what should we round entropy to?
 
 # number of grammars at each level to make 
-numGrammars = 100 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
+numGrammars = 5 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
 
 # number of strings we want per grammar
-numStrings = 500
+numStrings = 100
 
 # string length 
 stringLength = 11
@@ -81,7 +71,7 @@ Random.seed!(2022)
 n_epochs = 15
 
 # Do you want to re-run the database pushes?
-reRunDB = false
+reRunDB = true
 
 ##################################################################################################################################
 # 1. Build grammars
@@ -279,7 +269,7 @@ if reRunDB
 
     # Make grammars and push to DB
 
-    println("Creating ", size(grammarsFromDB)[1]*numStrings*(numStrings+1), "strings in the table `strings`")
+    println("Creating ", size(grammarsFromDB)[1]*numStrings*(numErrors+1), "strings in the table `strings`")
 
     for i in 1:size(grammarsFromDB)[1] #for all the grammars that are unique in the DB
     
@@ -301,7 +291,7 @@ if reRunDB
     
         #println(stringTableCreationQuery)
         for k in 1:numStrings
-            for z in 0:numStrings
+            for z in 0:numErrors
                 outputString, outputStringAsNum = makeString(alphabet, transitionMatrix, errTransitionMatrix, stringLength, z)
                 insertIntoQuery = string("INSERT INTO strings (grammarUUID, string, stringNumber, error, stringUUID) VALUES(\"",
                 grammarsFromDB.grammarUUID[i], "\", \"",
@@ -356,7 +346,7 @@ if reRunDB
         modelList = []
         for numNeurons in 4:4:100
             for numLayers in 1:2
-                model = createModel(numNeurons, numLayers, numClasses, stringLength, alphabetLength)
+                model = createModel(numNeurons, numLayers, numErrors, stringLength, alphabetLength)
                 push!(modelList, (model, numNeurons, numLayers))
             
                 query = string("INSERT INTO models (modelUUID, name, neurons, layers) VALUES(UUID(), ", "\"",
@@ -420,7 +410,7 @@ end
 function trainModelOnGrammar(grammarUUID, model, modelUUID, alphabetLength, n_epochs)
     # loading the df from csv training data 
     #df = CSV.read(filepath, DataFrame)
-
+    Flux.reset!(model)
     query = string("SELECT * FROM strings WHERE grammarUUID = \"", grammarUUID, "\";")
     grammarStrings = DBInterface.execute(con, query) |> DataFrame # force to right types
 
@@ -503,7 +493,7 @@ function trainModelOnGrammar(grammarUUID, model, modelUUID, alphabetLength, n_ep
     begin
         for epoch in 1:n_epochs
             #local l
-            println(epoch)
+            #println(epoch)
             #for d in enumerate(train_dat)
                 #println(bnum)
                 #gs = gradient(Flux.params(model)) do 
@@ -557,7 +547,8 @@ modelsFromDB = DBInterface.execute(con, "SELECT * FROM models;") |> DataFrame # 
 # need to add training instance UUID
 
 for i in 1:size(grammarsFromDB)[1]
-    for j in 1:size(modelsFromDB)[1]
+    #for j in 1:size(modelsFromDB)[1]
+    for j in 1:2
 
         global outputOfTraining = trainModelOnGrammar(grammarsFromDB.grammarUUID[i], modelList[j][1], modelsFromDB.modelUUID[j], alphabetLength, n_epochs)
         for h in 1:size(outputOfTraining)[1]
