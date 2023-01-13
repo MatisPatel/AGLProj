@@ -560,6 +560,7 @@ for i in 1:size(grammarsFromDB)[1]
     for j in 1:size(modelsFromDB)[1]
 
         global outputOfTraining = trainModelOnGrammar(grammarsFromDB.grammarUUID[i], modelList[j][1], modelsFromDB.modelUUID[j], alphabetLength, n_epochs)
+        
         for h in 1:size(outputOfTraining)[1]
             
             query = string("INSERT INTO trainedmodels (traininginstanceUUID, stringUUID, modelUUID, trainteststring, pretrainpreds, posttrainpreds, epochs) VALUES(UUID(), \"",
