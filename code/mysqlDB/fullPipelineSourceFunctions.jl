@@ -1,5 +1,6 @@
 ## Functions for pipeline
-
+using Random
+using LinearAlgebra
 # 1. Build grammars
 
 # Define some functions we will need 
@@ -58,14 +59,16 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
         if edges == N
             return "ERROR: To few edges to construct with no loops, or at least it will take too long..."
         end
-
+        # [[j==i ? 0 : 1 for j in 1:N] for i in 1:N]
         while !done
-            grammar = reshape(shuffle(vcat(repeat([1], edges),
-                    repeat([0], N^2 - edges))), N, N)
+            listEdges = shuffle(vcat(repeat([1], edges),
+                    repeat([0], N^2-N - edges))) 
+            grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:N] for i in 1:N])
+            grammar = reduce(hcat, grammar)
             #println(sum(Diagonal(grammar)))
-            if checkTransitionsFull(grammar)
-                if checkConnected(grammar)
-                    if sum(Diagonal(grammar)) == 0 # added constraint so that it must not have loops
+            if sum(Diagonal(grammar)) == 0
+                if checkTransitionsFull(grammar)
+                    if checkConnected(grammar) # added constraint so that it must not have loops
                         done = true
                     end
                 end
