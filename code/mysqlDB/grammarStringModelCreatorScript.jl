@@ -73,10 +73,10 @@ println("Opening DB Connection")
     roundingPrecision = 5 # what should we round entropy to?
 
     # number of grammars at each level to make 
-    numGrammars = 2 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
+    numGrammars = 20 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
 
     # number of strings we want per grammar
-    numStrings = 3
+    numStrings = 500
 
     # string length 
     stringLength = 11   
