@@ -99,10 +99,21 @@ end
 
 ## Create trained models table
 
-DBInterface.execute(con, "CREATE TABLE trainedmodels (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainpreds INT, posttrainpreds INT, epochs INT);")
+rerunDB = true
 
-for grammarNum in 1:nrow(grammarsFromDB)
+if rerunDB
+    DBInterface.execute(con, "DROP TABLE IF EXISTS trainedmodels;")
+    DBInterface.execute(con, "CREATE TABLE trainedmodels (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainpreds INT, posttrainpreds INT, epochs INT, UNIQUE (stringID, modelID));")
+else
+    try
+        DBInterface.execute(con, "CREATE TABLE trainedmodels (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainpreds INT, posttrainpreds INT, epochs INT, UNIQUE (stringID, modelID));")
+    catch
+        println("The `trainedmodels` table already exists. Delete the table or skip these lines and add more data to the database.")
+    end
+end
 
+#for grammarNum in 1:nrow(grammarsFromDB)
+for grammarNum in 1:300:nrow(grammarsFromDB)
     ## first get the grammars and strings out
 
     grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarsFromDB.grammarID[grammarNum], ";") #write the query to get the strings for the ith grammar
@@ -129,7 +140,13 @@ for grammarNum in 1:nrow(grammarsFromDB)
             outputOfTraining.initialPreds[row], ", ",
             outputOfTraining.trainedPreds[row], ", ",
             n_epochs, ");")
-        DBInterface.execute(con, query) # push to DB
+        try
+            DBInterface.execute(con, query) # push to DB
+        catch
+            println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
+            continue
+        end
+        
     end
     outputOfTraining = 0 #reassign that dataframe to something small to release memory
     GC.gc() #force garbage collection at end of each loop.
