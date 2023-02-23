@@ -133,12 +133,14 @@ end
 
 # train model function
 
-function trainModelOnGrammar(grammarUUID, model, modelUUID, alphabetLength, n_epochs)
+function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epochs, modelID)
     # loading the df from csv training data 
     #df = CSV.read(filepath, DataFrame)
 
-    query = string("SELECT * FROM strings WHERE grammarUUID = \"", grammarUUID, "\";")
-    grammarStrings = DBInterface.execute(con, query) |> DataFrame # force to right types
+    #query = string("SELECT * FROM strings WHERE grammarID = \"", grammarID, "\";")
+    #grammarStrings = DBInterface.execute(con, query) |> DataFrame # force to right types
+
+    model = Chain(modelFromDB) #convert the string coming from the database into a chain
 
     # batch size for each backprop update
     batchsize = 15 
@@ -219,7 +221,7 @@ function trainModelOnGrammar(grammarUUID, model, modelUUID, alphabetLength, n_ep
     begin
         for epoch in 1:n_epochs
             #local l
-            println(epoch)
+            #println(epoch)
             #for d in enumerate(train_dat)
                 #println(bnum)
                 #gs = gradient(Flux.params(model)) do 
@@ -255,7 +257,7 @@ function trainModelOnGrammar(grammarUUID, model, modelUUID, alphabetLength, n_ep
 
     # make column of modelUUIDs
 
-    #grammarStrings.modelUUID = vcat(repeat([modelUUID], length(strings)))
+    grammarStrings.modelID = vcat(repeat([modelID], length(strings)))
 
     return grammarStrings
 end
