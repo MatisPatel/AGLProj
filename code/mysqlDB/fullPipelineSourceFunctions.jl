@@ -174,7 +174,7 @@ function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epoc
     alphabet = collect('a':'z')[1:Int(alphabetLength)]
 
     # one hot encoding of strings for training/testing
-    strings = [Float64.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammarStrings.string]
+    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammarStrings.string]
 
     # splitting the data ito train/test and strings and truth. 
     train_X = strings[1:indx]
