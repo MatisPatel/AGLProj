@@ -50,7 +50,7 @@ clean_data <- trainedData %>% mutate(grammarID = haven::as_factor(grammarID),
                                         layers = layers)
 
 
-neuronsPlot <- clean_data %>% ggplot(aes(x = entropy, y = accuracy, colour = neurons)) +
+neuronsPlot <- clean_data %>% ggplot(aes(x = entropy, y = accuracy, colour = neurons), size = 3) +
 geom_point() + stat_smooth()
 
 neuronsPlot
