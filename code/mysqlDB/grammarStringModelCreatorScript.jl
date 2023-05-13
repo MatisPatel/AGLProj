@@ -73,7 +73,7 @@ println("Opening DB Connection")
     roundingPrecision = 5 # what should we round entropy to?
 
     # number of grammars at each level to make 
-    numGrammars = 20 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
+    numGrammars = 100 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
 
     # number of strings we want per grammar
     numStrings = 500
@@ -97,7 +97,7 @@ println("Opening DB Connection")
     minNumNeurons = 4
 
     # Maximum number of neurons we want in the networks 
-    maxNumNeurons = 40
+    maxNumNeurons = 80
 
     # Increments between neurons
     neuronIncrements = 4 #ensure they are increments that make sense
@@ -106,7 +106,7 @@ println("Opening DB Connection")
     minNumLayers = 1
 
     # Maximum number of layers we want in the networks
-    maxNumLayers = 2
+    maxNumLayers = 8
 #end
 
 # Do you want to re-run the database pushes?
@@ -121,6 +121,9 @@ reRunDB = true
 if reRunDB 
 
     println("Creating DB Table")
+    DBDropQuery = string("DROP TABLE IF EXISTS strings;") # make the drop table query 
+    DBInterface.execute(con, DBDropQuery) #drop any existing table, just in case.
+
     DBInterface.execute(con, "DROP TABLE IF EXISTS grammars;") #drop any existing table, just in case.
     # may need to drop dependent tables, if so: DBInterface.execute(con, "DROP TABLE IF EXISTS trainedmodels;"); DBInterface.execute(con, "DROP TABLE IF EXISTS strings;"); DBInterface.execute(con, "DROP TABLE IF EXISTS models;")
     # create query with max length for transitionMatrix DB length
