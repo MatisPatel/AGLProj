@@ -9,7 +9,7 @@ library(dplyr)
 library(ggplot2)
 library(haven)
 library(DBI)
-library(RMySQL)
+library(RMariaDB)
 
 
 ## DB Connection
@@ -22,7 +22,7 @@ dbPassword = database_connection$Value[3]
 dbHostname = database_connection$Value[4]
 dbPort = 3306
 
-myDB <- dbConnect(MySQL(), user = dbUsername, password = dbPassword, dbname = dbName, host = dbHostname, port = dbPort)
+myDB <- dbConnect(MariaDB(), user = dbUsername, password = dbPassword, dbname = dbName, host = dbHostname, port = dbPort)
 
 
 ## Query the database
