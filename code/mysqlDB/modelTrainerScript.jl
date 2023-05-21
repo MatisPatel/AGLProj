@@ -31,7 +31,7 @@ using MySQL
 using Flux 
 #using Revise
 #using ProgressMeter
-include("fullPipelineSourceFunctions.jl")
+include("./code/mysqlDB/fullPipelineSourceFunctions.jl")
 # end
 
 # Set up database
@@ -115,7 +115,7 @@ else
     end
 end
 
-Indexes_to_iter = [(i, j) for i in 1:300:nrow(grammarsFromDB) for j in 1:10:length(modelList)]
+#Indexes_to_iter = [(i, j) for i in 1:300:nrow(grammarsFromDB) for j in 1:10:length(modelList)]
 
 # @benchmark begin
     # Threads.@threads for (grammarNum, model) in Indexes_to_iter
@@ -161,7 +161,7 @@ Indexes_to_iter = [(i, j) for i in 1:300:nrow(grammarsFromDB) for j in 1:10:leng
             try
                 DBInterface.execute(con, query) # push to DB
             catch
-                println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
+                #println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
                 continue
             end
             
