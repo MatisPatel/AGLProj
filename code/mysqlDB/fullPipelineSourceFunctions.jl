@@ -1,6 +1,7 @@
 ## Functions for pipeline
 using Random
 using LinearAlgebra
+using Flux
 # 1. Build grammars
 
 # Define some functions we will need 
@@ -126,6 +127,42 @@ function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlp
             Dense(splits[end], numClasses, sigmoid)
         )
     end
+    return model
+end
+
+function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthStrings, lengthAlphabet)
+    # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
+    lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
+                    floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
+    for lam_neurons in lam_splits
+        if lam_neurons < numLayers
+            return DomainError(numLaminations, "You have defined too many layers for the number of neurons some layers will have no neurons.")
+        end
+    end
+    layer_splits = []
+    for lam_neurons in lam_splits
+        splits = Int.(sort([floor(lam_neurons*(k+1)/numLayers) - floor(lam_neurons*k / numLayers) for k in 1:numLayers], rev=true))
+        push!(layer_splits, splits)
+    end
+    branches = [] 
+    for splits in layer_splits
+        if (length(splits) == 1)
+            branch = Chain(
+                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        else
+            branch = Chain(
+                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...
+            )
+        end
+        push!(branches, branch)
+    end
+    model = Chain(
+        Parallel(vcat, branches...),
+        Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+    )
     return model
 end
 
