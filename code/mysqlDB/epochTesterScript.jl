@@ -70,7 +70,7 @@ stringLength = stringLength[1,1]
 
 
 # Max number of epochs to run the training for
-max_epochs = 1000
+max_epochs = 5000
 
 # get graamar definitions from DB
 grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFrame
