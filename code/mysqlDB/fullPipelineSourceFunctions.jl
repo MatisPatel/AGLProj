@@ -1,6 +1,8 @@
 ## Functions for pipeline
 using Random
 using LinearAlgebra
+using StatsBase
+using Combinatorics
 # 1. Build grammars
 
 # Define some functions we will need 
@@ -106,6 +108,35 @@ function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an 
     return join(alphabet[str_idxs]), str_idxs, where_errors
 end
 
+#################################################################################################################################
+# 2.1 Make grammar strings from raised grammar
+
+# String maker function
+genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
+
+function makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
+    str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
+    moras = genMoras(alphabet, n_raised)
+    moraSize = length(moras) # get length of alphabet
+    str_idxs[1] = rand(1:moraSize) # assign first index to be a random letter in alphabet
+    where_errors = nothing
+    if (errors < str_len-1)
+        where_errors = sample(2:str_len, errors, replace=false)
+    else
+        where_errors = 2:str_len
+    end
+    for n in 2:str_len 
+        if n in where_errors
+            next = sample(1:moraSize, Weights(err_grammar[str_idxs[n-1], :]))
+            str_idxs[n] = next
+        else 
+            next = sample(1:moraSize, Weights(grammar[str_idxs[n-1], :]))
+            str_idxs[n] = next
+        end
+    end 
+    return str_idxs, where_errors
+end
+makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors)
 ##################################################################################################################################
 # 3. Define models 
 
