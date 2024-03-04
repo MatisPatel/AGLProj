@@ -2,3 +2,5 @@
 *KV.jl
 *.bson 
 *.html
+scratch/
+*.log
