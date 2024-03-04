@@ -31,7 +31,7 @@ using MySQL
 using Flux 
 #using Revise
 #using ProgressMeter
-include("./code/mysqlDB/fullPipelineSourceFunctions.jl")
+include("fullPipelineSourceFunctions.jl")
 # end
 
 # Set up database
@@ -79,9 +79,9 @@ stringLength = DBInterface.execute(con, "SELECT stringLength FROM strings LIMIT 
 stringLength = stringLength[1,1]
 
 # Number of epochs to run the training for
-n_epochs = 5
+n_epochs = 100
 
-# get graamar definitions from DB
+# get grammar definitions from DB
 grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFrame
 
 # end
@@ -93,7 +93,7 @@ grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFram
 # @everywhere begin
 modelList = [] 
 for row in 1:nrow(modelTable)
-    modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], numErrors, stringLength, alphabetLength)
+    modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], modelTable.laminations[row], numErrors, stringLength, alphabetLength)
     push!(modelList, (modelChain, modelTable.modelID[row]))
 end
 # end
@@ -115,41 +115,26 @@ else
     end
 end
 
-#Indexes_to_iter = [(i, j) for i in 1:300:nrow(grammarsFromDB) for j in 1:10:length(modelList)]
 
-# @benchmark begin
-    # Threads.@threads for (grammarNum, model) in Indexes_to_iter
-    #for grammarNum in 1:nrow(grammarsFromDB)
-    Threads.@threads for grammarNum in 1:150:nrow(grammarsFromDB)
-        #make connection
-        local con
+begin
+    for grammarNum in 1200:1200:size(grammarsFromDB)[1]
 
-        con = DBInterface.connect(MySQL.Connection, dbHostname,
-        dbUsername, dbPassword, db = dbName)
-
-        println("training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
-
-        ## first get the grammars and strings out
+        #println("Training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
 
         grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarsFromDB.grammarID[grammarNum], ";") #write the query to get the strings for the ith grammar
         stringsFromGrammar = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
-
         ## train the first model to intialise the df
-
         modelTrain =modelList[1][1]
         trainingData = stringsFromGrammar
 
         outputOfTraining = trainModelOnGrammar(trainingData, modelTrain, alphabetLength, n_epochs, modelList[1][2]) 
 
-
-        ### This for loop can be parallelised. Everything is ready to go, just need to work out how to get the dataframes to bind at the end of the for loop so that we can then pass that dataframe to the database serially.
-        for model in 2:length(modelList)
-            nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[model][1], alphabetLength, n_epochs, modelList[model][2])
-            outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining)
+         
+        for model in 2:8:length(modelList)
+                nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[model][1], alphabetLength, n_epochs, modelList[model][2])
+                outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining, promote = true)
         end
-
-
-        ### This for loop just iterates row-wise through the output of training for all models on a single grammar, and pushes each row to the database one at a time. Avoids issues with querying database from multiple processes.
+        
         for row in 1:size(outputOfTraining)[1]
             query = string("INSERT INTO trainedmodels (stringID, modelID, trainteststring, pretrainpreds, posttrainpreds, epochs) VALUES(\"",
                 outputOfTraining.stringID[row], "\", \"",
@@ -161,16 +146,17 @@ end
             try
                 DBInterface.execute(con, query) # push to DB
             catch
-                #println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
+                println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
                 continue
             end
             
         end
-        # outputOfTraining = 0 #reassign that dataframe to something small to release memory
-        GC.gc() #force garbage collection at end of each loop.
+
+        GC.gc()
         
         println("releasing thread: ", Threads.threadid())
 
-        DBInterface.close!(con)
+        
     end
-# end
+    DBInterface.close!(con)
+end

@@ -10,6 +10,8 @@ library(ggplot2)
 library(haven)
 library(DBI)
 library(RMariaDB)
+library(lme4)
+library(glmmTMB)
 
 
 ## DB Connection
@@ -27,7 +29,7 @@ myDB <- dbConnect(MariaDB(), user = dbUsername, password = dbPassword, dbname = 
 
 ## Query the database
 
-query = "SELECT grammars.grammarID, models.modelID, grammars.connections, grammars.loops, grammars.entropy, strings.error, models.neurons, models.layers, trainedmodels.trainteststring, 
+query = "SELECT grammars.grammarID, models.modelID, grammars.connections, grammars.loops, grammars.entropy, strings.error, models.neurons, models.layers, models.laminations, trainedmodels.trainteststring, 
 trainedmodels.pretrainpreds, 
 trainedmodels.posttrainpreds FROM grammars 
 JOIN strings ON grammars.grammarID = strings.grammarID 
@@ -39,23 +41,50 @@ trainedData <- dbGetQuery(myDB, query)
 
 clean_data <- trainedData %>% mutate(grammarID = haven::as_factor(grammarID),
                                      modelID = haven::as_factor(modelID),
-                                     neurons = haven::as_factor(neurons),
-                                     layers = haven::as_factor(layers),
+                                     neurons = as.numeric(neurons),
+                                     layers = as.numeric(layers),
+                                     laminations = as.numeric(laminations),
                                      trainteststring = haven::as_factor(trainteststring),
                                      accuracy = ifelse(error == posttrainpreds, 1, 0)) %>%
-                              group_by(modelID, grammarID) %>%
-                              summarise(entropy = entropy,
-                                        accuracy = sum(accuracy)/n(),
-                                        neurons = neurons,
-                                        layers = layers)
+                              filter(trainteststring == "Test") %>%
+                              group_by(modelID, grammarID, neurons, layers, laminations, entropy) %>%
+                              summarise(accuracy = (sum(accuracy)/n()))
 
 
 neuronsPlot <- clean_data %>% ggplot(aes(x = entropy, y = accuracy, colour = neurons), size = 3) +
-geom_point() + stat_smooth()
+  geom_point() + stat_smooth()
 
 neuronsPlot
 
 layersPlot <- clean_data %>% ggplot(aes(x = entropy, y = accuracy, colour = layers)) + 
-geom_point() + stat_smooth()
+  geom_point() + stat_smooth()
 
 layersPlot
+
+laminationsPlot <- clean_data %>% ggplot(aes(x = entropy, y = accuracy, colour = laminations)) + 
+  geom_point() + stat_smooth()
+
+laminationsPlot
+
+
+##
+
+(laminationsAccPlot <- clean_data %>% ggplot(aes(x = laminations, y = accuracy)) + 
+  geom_jitter())
+
+(layersAccPlot <- clean_data %>% ggplot(aes(x = layers, y = accuracy)) + 
+    geom_jitter())
+
+(neuronsAccPlot <- clean_data %>% ggplot(aes(x = neurons, y = accuracy)) + 
+    geom_jitter() + stat_smooth())
+
+## Do some beta regressions
+
+fit_beta <- glmmTMB(accuracy ~ laminations*layers + entropy + (1|grammarID) + (1|modelID), family = beta_family(), data = clean_data)
+
+sink("./results/regressions/beta_regression_preliminary.txt")
+
+cat("Beta regression on the aggregate performance of ", length(unique(clean_data$modelID)), " networks on ", length(unique(clean_data$grammarID)), " different grammars.\n")
+summary(fit_beta)
+
+sink()

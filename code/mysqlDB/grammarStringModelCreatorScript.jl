@@ -90,9 +90,6 @@ println("Opening DB Connection")
     # Number of attempts to try to find unique transition matrices
     numAttempts = 10
 
-    # Number of epochs to run the training for
-    n_epochs = 5
-
     # Minimum number of neurons we want in the networks 
     minNumNeurons = 8
 
@@ -107,6 +104,9 @@ println("Opening DB Connection")
 
     # Maximum number of layers we want in the networks
     maxNumLayers = 8
+
+    # Maximum number of laminations in neural network (assuming increments of 1)
+    maxNumLaminations = 4
 #end
 
 # Do you want to re-run the database pushes?
@@ -315,35 +315,34 @@ if reRunDB
 
     println("Creating DB Table")
     DBInterface.execute(con, "DROP TABLE IF EXISTS models;") #drop any existing table, just in case.
-    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(1000), neurons INT, layers INT);") # create a table of the models 
+    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(1000), neurons INT, layers INT, laminations INT);") # create a table of the models 
 
     # Push models to DB and save to a list for training later. 
    
         modelList = []
         for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
             for numLayers in minNumLayers:maxNumLayers
-                model = createModel(numNeurons, numLayers, numErrors, stringLength, alphabetLength)
-                push!(modelList, (model, numNeurons, numLayers))
+                for lams in 1:maxNumLaminations
+
+                    try
+                        model = createModel(numNeurons, numLayers, lams, numErrors, stringLength, alphabetLength)
+                        push!(modelList, (model, numNeurons, numLayers))
+                    
+                        query = string("INSERT INTO models (name, neurons, layers, laminations) VALUES(", "\"",
+                                string(model), "\", ",
+                                numNeurons, ", ",
+                                numLayers, ", ",
+                                lams, ");"
+                            )
+                        #println(query)
             
-                query = string("INSERT INTO models (name, neurons, layers) VALUES(", "\"",
-                string(model), "\", ",
-                numNeurons, ", ",
-                numLayers, ");")
-                #println(query)
-    
-                DBInterface.execute(con, query) # push to DB
+                        DBInterface.execute(con, query) # push to DB
+                    catch
+                        println("There is a problem with this model... Number of neurons=", numNeurons, "; Number of layers=", numLayers, "; Number of laminations=", lams, ".")
+                    end
+                end
             end
         end
-
-else
-    
-    modelList = [] # we need the list in for training - might change as we might be able to parse strings into chains
-    for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
-        for numLayers in minNumLayers:maxNumLayers
-            model = createModel(numNeurons, numLayers, numErrors, stringLength, alphabetLength)
-            push!(modelList, (model, numNeurons, numLayers))
-        end
-    end
 end
 
 DBInterface.close!(con) #close the connection
