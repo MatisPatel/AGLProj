@@ -35,7 +35,7 @@ library(RMariaDB)
 
 ## DB Connection
 
-database_connection <- read.csv("./code/mysqlDB/database_connection.csv")
+database_connection <- read.csv("../code/mysqlDB/database_connection.csv")
 
 dbName = database_connection$Value[1]
 dbUsername = database_connection$Value[2]
@@ -51,7 +51,7 @@ models <- dbGetQuery(myDB, query)
 
 dbDisconnect(myDB)
 
-model_tests <- read.csv("./data/tuningTesting.csv")
+model_tests <- read.csv("../data/tuningTesting.csv")
 
 models_joined <- inner_join(models, model_tests, by = "modelID")
 

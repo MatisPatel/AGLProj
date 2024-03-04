@@ -13,7 +13,7 @@ library(RMariaDB)
 
 ## DB Connection
 
-database_connection <- read.csv("./code/mysqlDB/database_connection.csv")
+database_connection <- read.csv("../code/mysqlDB/database_connection.csv")
 
 dbName = database_connection$Value[1]
 dbUsername = database_connection$Value[2]
@@ -37,7 +37,7 @@ models <- transmute(models,
 # get epoch test CSV
 
 
-epoch_tests <- read.csv("./data/epochtesting.csv")
+epoch_tests <- read.csv("../data/epochtesting.csv")
 
 
 epoch_tests_clean_mean <- epoch_tests %>% pivot_longer(cols = starts_with("x"), names_to = "epoch", values_to = "loss") %>%
