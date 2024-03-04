@@ -143,18 +143,18 @@ makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors)
 
 # Create models function
 
-function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet)
+function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet, activation_func = sigmoid)
     # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
     splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
     if (length(splits) == 1)
         model = Chain(
-            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+            Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
             Dense(splits[end], numClasses, sigmoid)
         )
     else
         model = Chain(
-            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-            [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...,
+            Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
+            [Dense(splits[i], splits[i+1], activation_func) for i in 1:(length(splits) - 1)]...,
             Dense(splits[end], numClasses, sigmoid)
         )
     end

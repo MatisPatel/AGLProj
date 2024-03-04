@@ -94,7 +94,7 @@ println("Opening DB Connection")
     n_epochs = 5
 
     # Minimum number of neurons we want in the networks 
-    minNumNeurons = 4
+    minNumNeurons = 8
 
     # Maximum number of neurons we want in the networks 
     maxNumNeurons = 80
