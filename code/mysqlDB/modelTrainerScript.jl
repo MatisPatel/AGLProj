@@ -48,8 +48,7 @@ dbUsername = database_connection.Value[2]
 dbPassword = database_connection.Value[3]
 dbHostname = database_connection.Value[4]
 
-con = DBInterface.connect(MySQL.Connection, dbHostname,
-dbUsername, dbPassword, db = dbName) # set up connection
+con = DBInterface.connect(MySQL.Connection, dbHostname, dbUsername, dbPassword, db = dbName) # set up connection
 # end
 
 #######################
@@ -93,8 +92,13 @@ grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFram
 # @everywhere begin
 modelList = [] 
 for row in 1:nrow(modelTable)
-    modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], modelTable.laminations[row], numErrors, stringLength, alphabetLength)
-    push!(modelList, (modelChain, modelTable.modelID[row]))
+    if ismissing(modelTable[row,7]) #not recurrent
+        modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], modelTable.laminations[row], numErrors, stringLength, alphabetLength)
+        push!(modelList, (modelChain, modelTable.modelID[row], "feedforward"))
+    else
+        modelChain = createRecurrentModel(modelTable.neurons[row], modelTable.layers[row], modelTable.recurrentlayers[row], modelTable.laminations[row], modelTable.recurrentend[row], numErrors, stringLength, alphabetLength)
+        push!(modelList, (modelChain, modelTable.modelID[row], "recurrent"))
+    end
 end
 # end
 
@@ -102,7 +106,7 @@ end
 
 ## Create trained models table
 
-rerunDB = true
+rerunDB = false
 
 if rerunDB
     DBInterface.execute(con, "DROP TABLE IF EXISTS trainedmodels;")
@@ -117,22 +121,39 @@ end
 
 
 begin
-    for grammarNum in 1200:1200:size(grammarsFromDB)[1]
+    for grammarNum in 1:50:nrow(grammarsFromDB)
 
         #println("Training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
 
         grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarsFromDB.grammarID[grammarNum], ";") #write the query to get the strings for the ith grammar
         stringsFromGrammar = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
+
         ## train the first model to intialise the df
-        modelTrain =modelList[1][1]
         trainingData = stringsFromGrammar
 
-        outputOfTraining = trainModelOnGrammar(trainingData, modelTrain, alphabetLength, n_epochs, modelList[1][2]) 
+        println("Training on:", modelList[1][2])
+
+        if modelList[1][3] == "feedforward"
+            global outputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[1][1], alphabetLength, n_epochs, modelList[1][2], false)
+        elseif modelList[1][3] == "recurrent"
+            global outputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[1][1], alphabetLength, n_epochs, modelList[1][2], true)
+        else
+            println("Type of network not recognised.")
+        end
 
          
-        for model in 2:8:length(modelList)
-                nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[model][1], alphabetLength, n_epochs, modelList[model][2])
-                outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining, promote = true)
+        for model in modelList
+            if model != modelList[1]
+                println("Training on:", model[2])
+                if model[3] == "feedforward"
+                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, model[2], false)
+                elseif model[3] == "recurrent"
+                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, model[2], true)
+                else
+                    println("Type of network not recognised.")
+                end
+                global outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining, promote = true)
+            end
         end
         
         for row in 1:size(outputOfTraining)[1]
@@ -151,12 +172,9 @@ begin
             end
             
         end
-
+        outputOfTraining = Nothing 
         GC.gc()
-        
-        println("releasing thread: ", Threads.threadid())
-
-        
+            
     end
     DBInterface.close!(con)
 end

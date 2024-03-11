@@ -128,7 +128,7 @@ if reRunDB
     # may need to drop dependent tables, if so: DBInterface.execute(con, "DROP TABLE IF EXISTS trainedmodels;"); DBInterface.execute(con, "DROP TABLE IF EXISTS strings;"); DBInterface.execute(con, "DROP TABLE IF EXISTS models;")
     # create query with max length for transitionMatrix DB length
 
-    queryGrammarTable = string("CREATE TABLE grammars (grammarID INT AUTO_INCREMENT NOT NULL PRIMARY KEY, connections INT NOT NULL, loops INT NOT NULL, entropy FLOAT NOT NULL, alphabetLength INT NOT NULL, transitionMatrix CHAR(",
+    queryGrammarTable = string("CREATE TABLE grammars (grammarID INT AUTO_INCREMENT NOT NULL PRIMARY KEY, connections INT NOT NULL, loops INT NOT NULL, topentropy FLOAT NOT NULL, adjmatrixrealentropy FLOAT NOT NULL, adjmatriximagentropy FLOAT, adjmatrixmodentropy FLOAT NOT NULL, indlaplacianrealentropy FLOAT NOT NULL, indlaplacianimagentropy FLOAT, indlaplacianmodentropy FLOAT NOT NULL, slesslaplacianrealentropy FLOAT NOT NULL, slesslaplacianimagentropy FLOAT, slesslaplacianmodentropy FLOAT NOT NULL, alphabetLength INT NOT NULL, transitionMatrix CHAR(",
         (alphabetLength^2)*4, ") UNIQUE);") # have made enough room for the transitionMatrix by squaring alphabetLength for the flattened square matrix, and then multiplying by 4 just to be sure we don't hit an error, but should need at most 3 times (with white space, comments, and brackets).
     DBInterface.execute(con, queryGrammarTable) # create a table
 
@@ -148,30 +148,37 @@ if reRunDB
                         if grammarCounter < numGrammars # only try more attempts if you have less than the desired number of grammars
                             #println("Attempt Number: ", attemptNum, " for Connections: ", numConn, " grammar number: ", grammarNum)
                             try
-                                candidateGram = genConnectedGrammar(alphabetLength, numConn, loopsBinary)
-                                    # if !(candidateGram in gramVec) 
-                                    # push!(gramVec, candidateGram)
-                                #   done = true
-                                # end
+                                candidateGram, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian = genConnectedGrammar(alphabetLength, numConn, loopsBinary)
                                 # store grammar in dataframe 
-                                TE = round(grammarEntropy(candidateGram), digits = roundingPrecision)
-                                query = string("INSERT INTO grammars (connections, loops, entropy, alphabetLength, transitionMatrix) VALUES(",
-                                numConn, ", ",
-                                Int(loopsBinary), ", ",
-                                TE, ", ",
-                                alphabetLength, ", \"",
-                                string(candidateGram), "\");")
-                                #println(query)
+                                topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy = grammarEntropy(candidateGram, inDegreeLaplacian, signlessInDegreeLaplacian)
+                                adjMatrixImaginaryEntropy =  ifelse(isnan(adjMatrixImaginaryEntropy), " NULL ", round(adjMatrixImaginaryEntropy, digits = roundingPrecision))
+                                inDegreeLaplacianImaginaryEntropy =  ifelse(isnan(inDegreeLaplacianImaginaryEntropy), " NULL ", round(inDegreeLaplacianImaginaryEntropy, digits = roundingPrecision))
+                                signlessInDegreeLaplacianImaginaryEntropy =  ifelse(isnan(signlessInDegreeLaplacianImaginaryEntropy), " NULL ", round(signlessInDegreeLaplacianImaginaryEntropy, digits = roundingPrecision))
+                                query = string("INSERT INTO grammars (connections, loops, topentropy, adjmatrixrealentropy, adjmatriximagentropy, adjmatrixmodentropy, indlaplacianrealentropy, indlaplacianimagentropy, indlaplacianmodentropy, slesslaplacianrealentropy, slesslaplacianimagentropy, slesslaplacianmodentropy, alphabetLength, transitionMatrix) VALUES(",
+                                    numConn, ", ",
+                                    Int(loopsBinary), ", ",
+                                    round(topEntropy, digits = roundingPrecision), ", ",
+                                    round(adjMatrixRealEntropy, digits = roundingPrecision), ", ",
+                                    adjMatrixImaginaryEntropy, ", ",
+                                    round(adjMatrixModulusEntropy, digits = roundingPrecision), ", ",
+                                    round(inDegreeLaplacianRealEntropy, digits = roundingPrecision), ", ",
+                                    inDegreeLaplacianImaginaryEntropy, ", ",
+                                    round(inDegreeLaplacianModulusEntropy, digits = roundingPrecision), ", ",
+                                    round(signlessInDegreeLaplacianRealEntropy, digits = roundingPrecision), ", ",
+                                    signlessInDegreeLaplacianImaginaryEntropy, ", ",
+                                    round(signlessInDegreeLaplacianModulusEntropy, digits = roundingPrecision), ", ",
+                                    alphabetLength, ", \"",
+                                    string(candidateGram), "\");"
+                                )
     
                                 DBInterface.execute(con, query) # push to DB - will fail if there is an identical transition matrix, as this has a unique constraint.
-                                #println("Success! A grammar was added to your database with the following query: ")
-                                #println(query)
+
                                 grammarCounter += 1 # successfully added a grammar to the database, so add 1 to the counter
-                                #println(grammarCounter)
+
                                 continue
                             catch
                                 println("A non-unique transition matrix was found for grammar number ", grammarNum, " of grammars with ", numConn, " connections and loops = ", loopsBinary, ". Attempt ", attemptNum, " of ", numAttempts)
-                                #println(grammarCounter)
+
                                 continue
                             end
                         else
@@ -193,38 +200,41 @@ if reRunDB
             # gramVec = Matrix{Int64}[]
             grammarCounter = 0 
             for grammarNum in 1:numGrammars
-                #println("Connections: ", numConn, " grammar number: ", grammarNum)
-                #println(grammarCounter)
-                #done = false
-                # while !done
                     for attemptNum in 1:numAttempts
                         if grammarCounter < numGrammars # only try more attempts if you have less than the desired number of grammars
                             #println("Attempt Number: ", attemptNum, " for Connections: ", numConn, " grammar number: ", grammarNum)
                             try
-                                candidateGram = genConnectedGrammar(alphabetLength, numConn, loopsBinary)
-                                    # if !(candidateGram in gramVec) 
-                                    # push!(gramVec, candidateGram)
-                                #   done = true
-                                # end
+                                candidateGram, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian = genConnectedGrammar(alphabetLength, numConn, loopsBinary)
                                 # store grammar in dataframe 
-                                TE = round(grammarEntropy(candidateGram), digits = roundingPrecision)
-                                query = string("INSERT INTO grammars (connections, loops, entropy, alphabetLength, transitionMatrix) VALUES(",
-                                numConn, ", ",
-                                Int(loopsBinary), ", ",
-                                TE, ", ",
-                                alphabetLength, ", \"",
-                                string(candidateGram), "\");")
-                                #println(query)
+                                topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy = grammarEntropy(candidateGram, inDegreeLaplacian, signlessInDegreeLaplacian)
+                                adjMatrixImaginaryEntropy =  ifelse(isnan(adjMatrixImaginaryEntropy), " NULL ", round(adjMatrixImaginaryEntropy, digits = roundingPrecision))
+                                inDegreeLaplacianImaginaryEntropy =  ifelse(isnan(inDegreeLaplacianImaginaryEntropy), " NULL ", round(inDegreeLaplacianImaginaryEntropy, digits = roundingPrecision))
+                                signlessInDegreeLaplacianImaginaryEntropy =  ifelse(isnan(signlessInDegreeLaplacianImaginaryEntropy), " NULL ", round(signlessInDegreeLaplacianImaginaryEntropy, digits = roundingPrecision))
+                                query = string("INSERT INTO grammars (connections, loops, topentropy, adjmatrixrealentropy, adjmatriximagentropy, adjmatrixmodentropy, indlaplacianrealentropy, indlaplacianimagentropy, indlaplacianmodentropy, slesslaplacianrealentropy, slesslaplacianimagentropy, slesslaplacianmodentropy, alphabetLength, transitionMatrix) VALUES(",
+                                    numConn, ", ",
+                                    Int(loopsBinary), ", ",
+                                    round(topEntropy, digits = roundingPrecision), ", ",
+                                    round(adjMatrixRealEntropy, digits = roundingPrecision), ", ",
+                                    adjMatrixImaginaryEntropy, ", ",
+                                    round(adjMatrixModulusEntropy, digits = roundingPrecision), ", ",
+                                    round(inDegreeLaplacianRealEntropy, digits = roundingPrecision), ", ",
+                                    inDegreeLaplacianImaginaryEntropy, ", ",
+                                    round(inDegreeLaplacianModulusEntropy, digits = roundingPrecision), ", ",
+                                    round(signlessInDegreeLaplacianRealEntropy, digits = roundingPrecision), ", ",
+                                    signlessInDegreeLaplacianImaginaryEntropy, ", ",
+                                    round(signlessInDegreeLaplacianModulusEntropy, digits = roundingPrecision), ", ",
+                                    alphabetLength, ", \"",
+                                    string(candidateGram), "\");"
+                                )
     
                                 DBInterface.execute(con, query) # push to DB - will fail if there is an identical transition matrix, as this has a unique constraint.
-                                #println("Success! A grammar was added to your database with the following query: ")
-                                #println(query)
+
                                 grammarCounter += 1 # successfully added a grammar to the database, so add 1 to the counter
-                                #println(grammarCounter)
+
                                 continue
                             catch
                                 println("A non-unique transition matrix was found for grammar number ", grammarNum, " of grammars with ", numConn, " connections and loops = ", loopsBinary, ". Attempt ", attemptNum, " of ", numAttempts)
-                                #println(grammarCounter)
+
                                 continue
                             end
                         else
@@ -244,8 +254,6 @@ end
 
 # Grammars in DB
 
-#@everywhere 
-#grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars GROUP BY transitionMatrix;") |> DataFrame # get the grammars by unique transition matrix and convert to dataframe.
 grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFrame # get the grammars by unique transition matrix and convert to dataframe.
 println("There are ", nrow(grammarsFromDB), " grammars in the database. You may have asked for ", (numGrammars*((grammarConnections[end]-grammarConnections[1])+1))*2, " grammars, but many of those would have been duplicated.")
 
@@ -269,7 +277,7 @@ if reRunDB
         begin
             ## get transition matrix
             alphSize = grammarsFromDB.alphabetLength[i] # get the alphabet size from the DB
-            alphabet = ALPHABET[1:alphSize] # get the alphabet leeters we want
+            alphabet = ALPHABET[1:alphSize] # get the alphabet letters we want
             grammarString = grammarsFromDB.transitionMatrix[i] # get the flattened transition matrix
             grammarChop = chop(grammarString, head = 1, tail = 1) # chop the brackets off either side
             grammarSplit = split(grammarChop, "; ") # get the rows as separated by ;
@@ -308,41 +316,61 @@ end
 # 3. Define models 
 
 if reRunDB
-    
-    
-
     # Make model table
 
     println("Creating DB Table")
     DBInterface.execute(con, "DROP TABLE IF EXISTS models;") #drop any existing table, just in case.
-    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(1000), neurons INT, layers INT, laminations INT);") # create a table of the models 
+    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(1000), neurons INT, layers INT, laminations INT, recurrentlayers INT, recurrentend VARCHAR(10));") # create a table of the models 
 
     # Push models to DB and save to a list for training later. 
-   
-        modelList = []
-        for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
-            for numLayers in minNumLayers:maxNumLayers
-                for lams in 1:maxNumLaminations
 
+    for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
+        for numLayers in minNumLayers:maxNumLayers
+            for lams in 1:maxNumLaminations
+                if lams*numLayers <= numNeurons
                     try
                         model = createModel(numNeurons, numLayers, lams, numErrors, stringLength, alphabetLength)
-                        push!(modelList, (model, numNeurons, numLayers))
-                    
-                        query = string("INSERT INTO models (name, neurons, layers, laminations) VALUES(", "\"",
+                        
+                        query = string("INSERT INTO models (name, neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(", "\"",
                                 string(model), "\", ",
                                 numNeurons, ", ",
                                 numLayers, ", ",
-                                lams, ");"
+                                lams, ", ",
+                                string(0),
+                                ", NULL);"
                             )
-                        #println(query)
-            
+                
                         DBInterface.execute(con, query) # push to DB
+
                     catch
-                        println("There is a problem with this model... Number of neurons=", numNeurons, "; Number of layers=", numLayers, "; Number of laminations=", lams, ".")
+                        println("There is a problem with this feedforward model... Number of neurons=", numNeurons, "; Number of layers=", numLayers, "; Number of laminations=", lams, ".")
+                    end
+                end
+            end
+
+            for _end in ["in", "out"]
+                for rec_layers in 1:maxNumLayers
+                    if rec_layers <= numLayers
+                        try
+                            model = createRecurrentModel(numNeurons, numLayers, rec_layers, 0, _end, numErrors, stringLength, alphabetLength)
+                            query = string("INSERT INTO models (name, neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(", "\"",
+                                string(model), "\", ",
+                                numNeurons, ", ",
+                                numLayers, ", ",
+                                "0, ",
+                                rec_layers, ", \"",
+                                _end, "\");"
+                            )
+
+                            DBInterface.execute(con, query) # push to DB
+                        catch
+                            println("There is a problem with this recurrent model... Number of neurons=", numNeurons, "; Number of hidden layers=", numLayers, "; Number of laminations=0", "; Number of recurrent layers=", rec_layers, "; End of network that recurrent layers start=", _end, ".")
+                        end
                     end
                 end
             end
         end
+    end
 end
 
 DBInterface.close!(con) #close the connection

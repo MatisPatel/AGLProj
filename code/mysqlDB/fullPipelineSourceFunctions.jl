@@ -1,4 +1,5 @@
 ## Functions for pipeline
+using DataFrames
 using Random
 using LinearAlgebra
 using StatsBase
@@ -10,9 +11,46 @@ using Flux
 
 # Grammar Entropy function - get the entropy of the grammar, as the largest absolute eigenvalue of the grammar transition matrix
 
-function grammarEntropy(grammar)
-    topEntropy = abs(eigvals(grammar)[end])
-    return topEntropy
+function eigenvalueEntropy(eigenvalues)
+    # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
+
+    absolute_values = abs.(eigenvalues)
+    sum_values = sum(abs.(eigenvalues))
+
+    scaled_logged_values = (absolute_values./sum_values) .* log.(absolute_values./sum_values)
+
+    entropy = -1 * (sum(scaled_logged_values))
+
+    return entropy
+end
+
+function grammarEntropy(adjacencyMatrix, inDegreeLaplacian = nothing, signlessInDegreeLaplacian = nothing)
+    
+    if inDegreeLaplacian === nothing && inDegreeSignlessLaplacian === nothing
+        topEntropy = abs(eigvals(adjacencyMatrix)[end])
+        return topEntropy
+    else 
+        
+        topEntropy = abs(eigvals(adjacencyMatrix)[end])
+
+        adjMatrixEigenvalues = eigvals(adjacencyMatrix)
+        adjMatrixRealEntropy = eigenvalueEntropy(real.(adjMatrixEigenvalues))
+        adjMatrixImaginaryEntropy = eigenvalueEntropy(imag.(adjMatrixEigenvalues))
+        adjMatrixModulusEntropy = eigenvalueEntropy(abs.(adjMatrixEigenvalues))
+
+        inDegreeLaplacianEigenvalues = eigvals(inDegreeLaplacian)
+        inDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(inDegreeLaplacianEigenvalues))
+        inDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(inDegreeLaplacianEigenvalues))
+        inDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(inDegreeLaplacianEigenvalues))
+
+        signlessInDegreeLaplacianEigenvalues = eigvals(signlessInDegreeLaplacian)
+        signlessInDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(signlessInDegreeLaplacianEigenvalues))
+        signlessInDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(signlessInDegreeLaplacianEigenvalues))
+        signlessInDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(signlessInDegreeLaplacianEigenvalues))
+
+        return topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy
+
+    end
 end
 
 # Checking Connectedness of grammar - check whether the grammar is connected.
@@ -79,7 +117,13 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
         end
 
     end
-    return grammar
+
+    outDegreeMatrix = diagm(vec(sum(grammar, dims=1))) #diagonal matrix with the 
+    inDegreeMatrix = diagm(vec(sum(grammar, dims=2)))
+    outDegreeLaplacian = outDegreeMatrix .- grammar
+    inDegreeLaplacian = inDegreeMatrix .- grammar
+    signlessInDegreeLaplacian = inDegreeMatrix .+ grammar # For Sun et al. (2021) entropy calcs
+    return grammar, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian
 end
 
 #################################################################################################################################
@@ -113,9 +157,9 @@ end
 # 2.1 Make grammar strings from raised grammar
 
 # String maker function
-genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
+#genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
 
-function makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
+function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
     str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
     moras = genMoras(alphabet, n_raised)
     moraSize = length(moras) # get length of alphabet
@@ -137,32 +181,32 @@ function makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors) #
     end 
     return str_idxs, where_errors
 end
-makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors)
+#makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors)
 ##################################################################################################################################
 # 3. Define models 
 
 # Create models function
 
-function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet, activation_func = sigmoid)
-    # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
-    splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
-    if (length(splits) == 1)
-        model = Chain(
-            Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
-            Dense(splits[end], numClasses, sigmoid)
-        )
-    else
-        model = Chain(
-            Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
-            [Dense(splits[i], splits[i+1], activation_func) for i in 1:(length(splits) - 1)]...,
-            Dense(splits[end], numClasses, sigmoid)
-        )
-    end
-    return model
-end
+# function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet, activation_func = sigmoid)
+#     # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
+#     splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
+#     if (length(splits) == 1)
+#         model = Chain(
+#             Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
+#             Dense(splits[end], numClasses, sigmoid)
+#         )
+#     else
+#         model = Chain(
+#             Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
+#             [Dense(splits[i], splits[i+1], activation_func) for i in 1:(length(splits) - 1)]...,
+#             Dense(splits[end], numClasses, sigmoid)
+#         )
+#     end
+#     return model
+# end
 
 function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthStrings, lengthAlphabet)
-    # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
+    # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
     lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
                     floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
     for lam_neurons in lam_splits
@@ -180,7 +224,7 @@ function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthSt
         if (length(splits) == 1)
             branch = Chain(
                 Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                Dense(splits[end], numClasses, sigmoid)
+                #Dense(splits[end], numClasses, sigmoid)
             )
         else
             branch = Chain(
@@ -197,44 +241,100 @@ function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthSt
     return model
 end
 
+function createRecurrentModel(numNeurons, numHiddenLayers, numRecurrentLayers, numLaminations, recurrenceEnd, numClasses, lengthStrings, lengthAlphabet)
+
+    ## Make some assertions:
+
+    @assert (numHiddenLayers >= numRecurrentLayers) "Number of hidden layers is smaller than the number of recurrent layers. Provide the total number of hidden layers, and the number of those that should be recurrent."
+
+    @assert (numRecurrentLayers > 0) "Number of recurrent layers must be greater than 0. If you want to create a feedforward network, use the createModel function instead."
+
+    @assert (recurrenceEnd == "in" || recurrenceEnd == "out") "The end at which to start adding RNN layers should be defined as \"in\" or \"out\", for 'input' end and 'output' end respectively."
+
+    @assert (numNeurons >= numHiddenLayers) "The number of neurons in the network must be greater than or equal to the total number of hidden layers, otherwise, there will be some layers of length 0."
+
+    @assert (numNeurons >= numLaminations) "You have defined too many layers for the number of neurons some layers will have no neurons."
+
+    if numLaminations == 0
+
+        splits = Int.(sort([floor(numNeurons*(k+1)/numHiddenLayers) - floor(numNeurons*k/numHiddenLayers) for k in 1:numHiddenLayers], rev=true))
+
+        if (numHiddenLayers == 1 && numRecurrentLayers == 1)
+            model = Chain(
+                    RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                    Dense(splits[end], numClasses, sigmoid)
+                )
+        elseif (numHiddenLayers == 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
+            model = Chain(
+                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
+                RNN(splits[end-1], splits[end], tanh),
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        elseif (numHiddenLayers > 1 && numRecurrentLayers == 1 && recurrenceEnd == "in")
+            model = Chain(
+                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numHiddenLayers - 1)]...,
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        elseif (numHiddenLayers > 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
+            model = Chain(
+                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
+                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numHiddenLayers - 2)]...,
+                RNN(splits[end-1], splits[end], tanh),
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        elseif (numHiddenLayers == numRecurrentLayers && (recurrenceEnd == "in" || recurrenceEnd == "out"))
+            model = Chain(
+                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "in")
+            model = Chain(
+                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
+                [Dense(splits[j], splits[j+1], tanh) for j in numRecurrentLayers:(numHiddenLayers-1)]...,
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "out")
+            numDenseLayers = numHiddenLayers - numRecurrentLayers
+            model = Chain(
+                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
+                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numDenseLayers - 1)]...,
+                [RNN(splits[j], splits[j+1], tanh) for j in numDenseLayers:(numHiddenLayers-1)]...,
+                Dense(splits[end], numClasses, sigmoid)
+            )
+        else
+            println("Parameters not recognised.")
+        end
+    end
+    
+    return model
+end
+
 ###################################################################################################################################
 
 # train model function
 
-function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epochs, modelID)
-    # loading the df from csv training data 
-    #df = CSV.read(filepath, DataFrame)
-
-    #query = string("SELECT * FROM strings WHERE grammarID = \"", grammarID, "\";")
-    #grammarStrings = DBInterface.execute(con, query) |> DataFrame # force to right types
-
-    model = Chain(modelFromDB) #convert the string coming from the database into a chain
-
+function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence)
+    
+    #model = Chain(modelFromDB) #convert the string coming from the database into a chain
+    
     # batch size for each backprop update
-    batchsize = 15 
+    batchsize = 10 # tended to have good performance 
     # proportion of strings that will be in test group and not trained on
     propTests = 0.3
     # index for cut between training and test groups
     indx  = Int(floor(length(grammarStrings.string)*(1-propTests)))
-    # epochLength = Int(ceil(indx/batchsize))::Int64
 
     # determine size of output layer of network. 
     output_len = maximum(grammarStrings.error)::Int32
-    # input_len = Int(n*length(df.string[1]))::Int64
 
     # new col in grammarStrings, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
     grammarStrings.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in grammarStrings.error]
 
-    # args = Args()
-    # model = Chain(
-    #     Dense(input_len, Int(ceil(input_len)), relu),
-    #     # Dense(Int(ceil(input_len)), Int(ceil(input_len)), relu),
-    #     Dropout(0.1),
-    #     # Dense(Int(ceil(input_len)), Int(ceil(input_len/1.5)), relu),
-    #     Dense(Int(ceil(input_len)), output_len, sigmoid)
-    # )
-    # opt = ADAM(0.00001) 
     # defining optimiser to use
+    #opt = Momentum(0.01, 0.95) #tended to have good performance
     opt = ADAM(0.0001)
     # shuffle for rows
     grammarStrings = grammarStrings[shuffle(1:size(grammarStrings, 1)), :]
@@ -246,28 +346,12 @@ function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epoc
 
     # splitting the data ito train/test and strings and truth. 
     train_X = strings[1:indx]
-    train_Y = grammarStrings.encodedErrors[1:indx]' #@Mati, why is this encoded Errors when test is just error?
+    train_Y = grammarStrings.encodedErrors[1:indx]' 
     test_X = strings[indx+1:end]
-    test_Y = grammarStrings.encodedErrors[indx+1:end]' #@Mati, above q?
+    test_Y = grammarStrings.encodedErrors[indx+1:end]' 
 
-    # compile model call
-    # model(strings[1])
-
-    # 
-    test_X = cat(test_X..., dims=2)
-    # train_dat = ([(cat(train_X[i]..., dims=2),  train_Y[i]') for i in Iterators.partition(1:length(train_X), batchsize)])
-    
     # list comp to make tuples for each batch 
     train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batchsize)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
-
-    #lossVec = []
-    #valVec = []
-    # println("Training...")
-
-    # n_epochs = 500::Int64
-    # startacc0 is proportion of strings exactly predicted.
-    # startacc1 is proportion of strings predicted within 1 class range.
-    # startAcc0 , startAcc1 = calcAcc(test_X, test_Y, model);
 
 
     # make train/test columns for pretraining
@@ -275,41 +359,38 @@ function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epoc
     Test = ["Test"]
     grammarStrings.TrainOrTest = vcat(repeat(Train, indx), repeat(Test, length(strings[indx+1:end])))
 
+    if recurrence
+        Flux.reset!(model)
+    end
+
     # test the model out on the strings we have, before we train the model
     modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
     categories_trainX = cumprod(modout_trainX, dims=1)
     preds_trainX = sum(categories_trainX, dims=1) .== train_Y # this is giving all 0s, why?
 
-    modout_testX = model(test_X) .>= 0.5
+    if recurrence
+        Flux.reset!(model)
+    end
+    modout_testX = model(cat(test_X..., dims=2)) .>= 0.5
     categories_testX = cumprod(modout_testX, dims=1)
     preds_testX = sum(categories_testX, dims=1) .== test_Y
 
     grammarStrings.initialPreds = Int.(vec(hcat(preds_trainX, preds_testX)))
 
+    if recurrence
+        Flux.reset!(model)
+    end
+
     begin
         for epoch in 1:n_epochs
-            #local l
-            #println(epoch)
-            #for d in enumerate(train_dat)
-                #println(bnum)
-                #gs = gradient(Flux.params(model)) do 
-                #    l = Flux.logitbinarycrossentropy(model(d[1]), d[2])
-                    # Flux.mse(model(train_dat[1][1]), train_dat[1][2]) - works, but can't get gradient - zygote error.
-                    # Flux.logitbinarycrossentropy(model(train_dat[1][1]), train_dat[1][2])
-            #    end 
-            #    Flux.update!(opt, Flux.params(model), gs)
             ps = Flux.params(model)
             loss(x, y) = sum(Flux.Losses.binarycrossentropy(model(x), y))
             Flux.train!(loss, ps, train_dat, opt)    
-            #end 
-        # push!(lossVec, l)
-        # modout = model(test_X) .>= 0.5
-        # categories = cumprod(modout, dims=1)
-        # preds = sum(categories, dims=1)
-        # # preds = round.(Int, preds)
-        # acc = sqrt(Flux.mse(preds, test_Y))
-        # push!(valVec, acc)
         end
+    end
+
+    if recurrence
+        Flux.reset!(model)
     end
 
     # test the model out on the strings we have, before we train the model
@@ -317,11 +398,19 @@ function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epoc
     categories_trainX = cumprod(modout_trainX, dims=1)
     preds_trainX = sum(categories_trainX, dims=1)
 
-    modout_testX = model(test_X) .>= 0.5
+    if recurrence
+        Flux.reset!(model)
+    end
+
+    modout_testX = model(cat(test_X..., dims=2)) .>= 0.5
     categories_testX = cumprod(modout_testX, dims=1)
     preds_testX = sum(categories_testX, dims=1)
 
     grammarStrings.trainedPreds = vec(hcat(preds_trainX, preds_testX))
+
+    if recurrence
+        Flux.reset!(model)
+    end
 
     # make column of modelUUIDs
 
@@ -329,3 +418,4 @@ function trainModelOnGrammar(grammarStrings, modelFromDB, alphabetLength, n_epoc
 
     return grammarStrings
 end
+
