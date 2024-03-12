@@ -1,27 +1,27 @@
-Beta regression on the aggregate performance of  72  networks on  4  different grammars.
+Beta regression on the aggregate performance of  1934  networks on  5  different grammars.
  Family: beta  ( logit )
-Formula:          accuracy ~ laminations * layers + entropy + (1 | grammarID) +      (1 | modelID)
+Formula:          accuracy ~ neurons + laminations + layers + recurrentlayers +      (1 | grammarID) + (1 | modelID)
 Data: clean_data
 
      AIC      BIC   logLik deviance df.resid 
-  -537.9   -508.6    277.0   -553.9      280 
+-31114.3 -31056.9  15565.2 -31130.3     9662 
 
 Random effects:
 
 Conditional model:
- Groups    Name        Variance  Std.Dev. 
- grammarID (Intercept) 1.062e-01 3.259e-01
- modelID   (Intercept) 4.959e-11 7.042e-06
-Number of obs: 288, groups:  grammarID, 4; modelID, 72
+ Groups    Name        Variance Std.Dev.
+ grammarID (Intercept) 0.076504 0.27659 
+ modelID   (Intercept) 0.007694 0.08771 
+Number of obs: 9670, groups:  grammarID, 5; modelID, 1934
 
-Dispersion parameter for beta family (): 26.8 
+Dispersion parameter for beta family ():  116 
 
 Conditional model:
-                    Estimate Std. Error z value Pr(>|z|)  
-(Intercept)         1.278250   0.557974   2.291   0.0220 *
-laminations         0.089595   0.043493   2.060   0.0394 *
-layers             -0.073359   0.039143  -1.874   0.0609 .
-entropy            -0.280129   0.156537  -1.790   0.0735 .
-laminations:layers -0.008505   0.010704  -0.795   0.4269  
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)      0.4718993  0.1240957   3.803 0.000143 ***
+neurons          0.0034056  0.0001286  26.479  < 2e-16 ***
+laminations     -0.0318764  0.0027352 -11.654  < 2e-16 ***
+layers          -0.0456355  0.0014670 -31.108  < 2e-16 ***
+recurrentlayers -0.0007466  0.0016786  -0.445 0.656489    
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1

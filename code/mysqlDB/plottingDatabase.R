@@ -29,7 +29,7 @@ myDB <- dbConnect(MariaDB(), user = dbUsername, password = dbPassword, dbname = 
 
 ## Query the database
 
-query = "SELECT grammars.grammarID, models.modelID, grammars.connections, grammars.loops, grammars.entropy, strings.error, models.neurons, models.layers, models.laminations, trainedmodels.trainteststring, 
+query = "SELECT grammars.grammarID, models.modelID, grammars.connections, grammars.loops, grammars.topentropy, grammars.adjmatrixrealentropy, grammars.adjmatriximagentropy, grammars.adjmatrixmodentropy, grammars.indlaplacianrealentropy, grammars.indlaplacianimagentropy, grammars.indlaplacianmodentropy, grammars.slesslaplacianrealentropy, grammars.slesslaplacianimagentropy, grammars.slesslaplacianmodentropy, strings.error, models.neurons, models.layers, models.laminations, models.recurrentlayers, models.recurrentend, trainedmodels.trainteststring, 
 trainedmodels.pretrainpreds, 
 trainedmodels.posttrainpreds FROM grammars 
 JOIN strings ON grammars.grammarID = strings.grammarID 
@@ -47,7 +47,7 @@ clean_data <- trainedData %>% mutate(grammarID = haven::as_factor(grammarID),
                                      trainteststring = haven::as_factor(trainteststring),
                                      accuracy = ifelse(error == posttrainpreds, 1, 0)) %>%
                               filter(trainteststring == "Test") %>%
-                              group_by(modelID, grammarID, neurons, layers, laminations, entropy) %>%
+                              group_by(modelID, grammarID, neurons, layers, laminations, recurrentlayers, recurrentend, topentropy, adjmatrixrealentropy, adjmatrixmodentropy, indlaplacianrealentropy, indlaplacianmodentropy, slesslaplacianrealentropy, slesslaplacianmodentropy) %>%
                               summarise(accuracy = (sum(accuracy)/n()))
 
 
@@ -70,17 +70,29 @@ laminationsPlot
 ##
 
 (laminationsAccPlot <- clean_data %>% ggplot(aes(x = laminations, y = accuracy)) + 
-  geom_jitter())
+  geom_jitter() + stat_smooth(method = "loess"))
+
+ggsave("./results/plots/laminationPlotLoess.png")
 
 (layersAccPlot <- clean_data %>% ggplot(aes(x = layers, y = accuracy)) + 
-    geom_jitter())
+    geom_jitter() + stat_smooth(method = "loess"))
+
+ggsave("./results/plots/layerPlotLoess.png")
 
 (neuronsAccPlot <- clean_data %>% ggplot(aes(x = neurons, y = accuracy)) + 
-    geom_jitter() + stat_smooth())
+    geom_jitter() + stat_smooth(method = "loess"))
+
+ggsave("./results/plots/neuronPlotLoess.png")
+
+(reclayersAccPlot <- clean_data %>% ggplot(aes(x = recurrentlayers, y = accuracy)) + 
+    geom_jitter() + stat_smooth(method = "loess"))
+
+ggsave("./results/plots/recurrentLayersPlotLoess.png")
 
 ## Do some beta regressions
 
-fit_beta <- glmmTMB(accuracy ~ laminations*layers + entropy + (1|grammarID) + (1|modelID), family = beta_family(), data = clean_data)
+#fit_beta <- glmmTMB(accuracy ~ neurons + laminations*layers + recurrentlayers + recurrentend + topentropy + (1|grammarID) + (1|modelID), family = beta_family(), data = clean_data)
+fit_beta <- glmmTMB(accuracy ~ neurons + laminations + layers + recurrentlayers + topentropy + (1|grammarID) + (1|modelID), family = beta_family(), data = clean_data)
 
 sink("./results/regressions/beta_regression_preliminary.txt")
 
