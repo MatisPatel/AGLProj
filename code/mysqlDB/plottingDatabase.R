@@ -7,6 +7,7 @@
 
 library(dplyr)
 library(ggplot2)
+library(ggcorrplot)
 library(haven)
 library(DBI)
 library(RMariaDB)
@@ -100,3 +101,16 @@ cat("Beta regression on the aggregate performance of ", length(unique(clean_data
 summary(fit_beta)
 
 sink()
+
+## correlations
+
+grammarquery <- "SELECT connections, loops, topentropy, adjmatrixrealentropy, adjmatrixmodentropy, indlaplacianrealentropy, indlaplacianmodentropy, slesslaplacianrealentropy, slesslaplacianmodentropy FROM grammars"
+
+grammars <- dbGetQuery(myDB, grammarquery)
+
+grammars.cor <- cor(grammars, method = c("spearman"))
+
+(ggcorrplot(grammars.cor, hc.order = TRUE, type = "lower",
+           outline.col = "white",lab = TRUE))
+
+ggsave("./results/plots/entropyCorrelations.png")
