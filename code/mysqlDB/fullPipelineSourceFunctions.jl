@@ -255,7 +255,7 @@ function createRecurrentModel(numNeurons, numHiddenLayers, numRecurrentLayers, n
 
     @assert (numNeurons >= numLaminations) "You have defined too many layers for the number of neurons some layers will have no neurons."
 
-    if numLaminations == 0
+    if numLaminations == 1
 
         splits = Int.(sort([floor(numNeurons*(k+1)/numHiddenLayers) - floor(numNeurons*k/numHiddenLayers) for k in 1:numHiddenLayers], rev=true))
 
@@ -266,20 +266,20 @@ function createRecurrentModel(numNeurons, numHiddenLayers, numRecurrentLayers, n
                 )
         elseif (numHiddenLayers == 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
             model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
+                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
                 RNN(splits[end-1], splits[end], tanh),
                 Dense(splits[end], numClasses, sigmoid)
             )
         elseif (numHiddenLayers > 1 && numRecurrentLayers == 1 && recurrenceEnd == "in")
             model = Chain(
                 RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numHiddenLayers - 1)]...,
+                [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 1)]...,
                 Dense(splits[end], numClasses, sigmoid)
             )
         elseif (numHiddenLayers > 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
             model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numHiddenLayers - 2)]...,
+                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 2)]...,
                 RNN(splits[end-1], splits[end], tanh),
                 Dense(splits[end], numClasses, sigmoid)
             )
@@ -293,20 +293,80 @@ function createRecurrentModel(numNeurons, numHiddenLayers, numRecurrentLayers, n
             model = Chain(
                 RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
                 [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
-                [Dense(splits[j], splits[j+1], tanh) for j in numRecurrentLayers:(numHiddenLayers-1)]...,
+                [Dense(splits[j], splits[j+1], relu) for j in numRecurrentLayers:(numHiddenLayers-1)]...,
                 Dense(splits[end], numClasses, sigmoid)
             )
         elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "out")
             numDenseLayers = numHiddenLayers - numRecurrentLayers
             model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [Dense(splits[i], splits[i+1], tanh) for i in 1:(numDenseLayers - 1)]...,
+                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                [Dense(splits[i], splits[i+1], relu) for i in 1:(numDenseLayers - 1)]...,
                 [RNN(splits[j], splits[j+1], tanh) for j in numDenseLayers:(numHiddenLayers-1)]...,
                 Dense(splits[end], numClasses, sigmoid)
             )
         else
-            println("Parameters not recognised.")
+            println("Error in nets with 1 lamination.")
         end
+    else
+            lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
+                    floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
+            for lam_neurons in lam_splits
+                if lam_neurons < numHiddenLayers
+                    return DomainError(numLaminations, "You have defined too many layers for the number of neurons some layers will have no neurons.")
+                end
+            end
+            layer_splits = []
+            for lam_neurons in lam_splits
+                splits = Int.(sort([floor(lam_neurons*(k+1)/numHiddenLayers) - floor(lam_neurons*k / numHiddenLayers) for k in 1:numHiddenLayers], rev=true))
+                push!(layer_splits, splits)
+            end
+            branches = [] 
+                for splits in layer_splits
+                    if (numHiddenLayers == 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
+                        branch = Chain(
+                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                            RNN(splits[end-1], splits[end], tanh)
+                        )
+                    elseif (numHiddenLayers > 1 && numRecurrentLayers == 1 && recurrenceEnd == "in")
+                        branch = Chain(
+                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 1)]...
+                        )
+                    elseif (numHiddenLayers > 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
+                        branch = Chain(
+                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 2)]...,
+                            RNN(splits[end-1], splits[end], tanh)
+                        )
+                    elseif (numHiddenLayers == numRecurrentLayers && (recurrenceEnd == "in" || recurrenceEnd == "out"))
+                        branch = Chain(
+                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                            [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...
+                        )
+                    elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "in")
+                        branch = Chain(
+                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                            [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
+                            [Dense(splits[j], splits[j+1], relu) for j in numRecurrentLayers:(numHiddenLayers-1)]...
+                        )
+                    elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "out")
+                        numDenseLayers = numHiddenLayers - numRecurrentLayers
+                        branch = Chain(
+                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numDenseLayers - 1)]...,
+                            [RNN(splits[j], splits[j+1], tanh) for j in numDenseLayers:(numHiddenLayers-1)]...
+                        )
+                    else
+                        println("Error in nets with 2+ laminations.")
+                    end
+                    push!(branches, branch)
+                end
+                
+            model = Chain(
+                Parallel(vcat, branches...),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+            )
+        
     end
     
     return model
@@ -314,9 +374,11 @@ end
 
 ###################################################################################################################################
 
-# train model function
+# L2 Regularizer helper function
+pen_l2(x::AbstractArray) = sum(abs2, x)/2
 
-function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence)
+# train model function
+function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence, reg_penalty = 0.01)
     
     #model = Chain(modelFromDB) #convert the string coming from the database into a chain
     
@@ -384,15 +446,20 @@ function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, mo
     begin
         for epoch in 1:n_epochs
             ps = Flux.params(model)
-            loss(x, y) = sum(Flux.Losses.binarycrossentropy(model(x), y))
+            #loss(x, y) = sum(Flux.Losses.binarycrossentropy(model(x), y))
+            penalty() = sum(pen_l2, ps)
+            loss(x, y) = Flux.Losses.binarycrossentropy(model(x), y) + (reg_penalty * penalty())
+            println("Penalty: ", penalty())
             Flux.train!(loss, ps, train_dat, opt)    
         end
     end
+
 
     if recurrence
         Flux.reset!(model)
     end
 
+    testmode!(model) #if there are dropout layers
     # test the model out on the strings we have, before we train the model
     modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
     categories_trainX = cumprod(modout_trainX, dims=1)
@@ -406,7 +473,7 @@ function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, mo
     categories_testX = cumprod(modout_testX, dims=1)
     preds_testX = sum(categories_testX, dims=1)
 
-    grammarStrings.trainedPreds = vec(hcat(preds_trainX, preds_testX))
+    grammarStrings.trainedPreds = Int.(vec(hcat(preds_trainX, preds_testX)))
 
     if recurrence
         Flux.reset!(model)
@@ -418,4 +485,3 @@ function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, mo
 
     return grammarStrings
 end
-

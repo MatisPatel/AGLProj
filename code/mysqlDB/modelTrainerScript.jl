@@ -92,7 +92,7 @@ grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFram
 # @everywhere begin
 modelList = [] 
 for row in 1:nrow(modelTable)
-    if ismissing(modelTable[row,7]) #not recurrent
+    if ismissing(modelTable[row,7]) #not recurrent as no "in" or "out" specification
         modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], modelTable.laminations[row], numErrors, stringLength, alphabetLength)
         push!(modelList, (modelChain, modelTable.modelID[row], "feedforward"))
     else
@@ -116,6 +116,9 @@ else
         DBInterface.execute(con, "CREATE TABLE trainedmodels (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainpreds INT, posttrainpreds INT, epochs INT, UNIQUE (stringID, modelID));")
     catch
         println("The `trainedmodels` table already exists. Delete the table or skip these lines and add more data to the database.")
+    finally
+        trainedModelsInDB = DBInterface.execute(con, "SELECT trainedmodels.modelID, strings.grammarID FROM trainedmodels JOIN strings ON trainedmodels.stringID = strings.stringID;") |> DataFrame
+        unique!(trainedModelsInDB)
     end
 end
 
@@ -124,57 +127,55 @@ begin
     for grammarNum in 1:50:nrow(grammarsFromDB)
 
         #println("Training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
-
-        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarsFromDB.grammarID[grammarNum], ";") #write the query to get the strings for the ith grammar
+        grammarID = grammarsFromDB.grammarID[grammarNum]
+        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, ";") #write the query to get the strings for the ith grammar
         stringsFromGrammar = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
 
-        ## train the first model to intialise the df
         trainingData = stringsFromGrammar
 
-        println("Training on:", modelList[1][2])
-
-        if modelList[1][3] == "feedforward"
-            global outputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[1][1], alphabetLength, n_epochs, modelList[1][2], false)
-        elseif modelList[1][3] == "recurrent"
-            global outputOfTraining = trainModelOnGrammar(stringsFromGrammar, modelList[1][1], alphabetLength, n_epochs, modelList[1][2], true)
-        else
-            println("Type of network not recognised.")
-        end
-
+        global outputOfTraining = DataFrame(grammarID = Int32[], string = String[], stringLength = Int32[], stringNumber = String[], error = Int32[], stringID = Int32[], encodedErrors = Vector{Vector{Float64}}, TrainOrTest = String[], initialPreds = Int64[], trainedPreds = Int64[], modelID = Int32[])
          
-        for model in modelList
-            if model != modelList[1]
+        for model in modelList 
+            modelID = model[2]
+            checkIfRun = filter(row -> row.modelID == modelID && row.grammarID == grammarID, trainedModelsInDB) #check if there are any rows for that model on that grammar already in the database
+            if nrow(checkIfRun) == 0
                 println("Training on:", model[2])
                 if model[3] == "feedforward"
-                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, model[2], false)
+                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, modelID, false)
                 elseif model[3] == "recurrent"
-                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, model[2], true)
+                    nextModelOutputOfTraining = trainModelOnGrammar(stringsFromGrammar, model[1], alphabetLength, n_epochs, modelID, true)
                 else
                     println("Type of network not recognised.")
                 end
                 global outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining, promote = true)
+            else
+                println("Model ID ", modelID, "has already been trained on Grammar ID ", grammarID, ". Moving on.")
             end
         end
         
-        for row in 1:size(outputOfTraining)[1]
-            query = string("INSERT INTO trainedmodels (stringID, modelID, trainteststring, pretrainpreds, posttrainpreds, epochs) VALUES(\"",
-                outputOfTraining.stringID[row], "\", \"",
-                outputOfTraining.modelID[row], "\", \"",
-                outputOfTraining.TrainOrTest[row], "\", ",
-                outputOfTraining.initialPreds[row], ", ",
-                outputOfTraining.trainedPreds[row], ", ",
-                n_epochs, ");")
-            try
-                DBInterface.execute(con, query) # push to DB
-            catch
-                println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
-                continue
+        if nrow(outputOfTraining) > 0
+            for row in 1:nrow(outputOfTraining)
+                query = string("INSERT INTO trainedmodels (stringID, modelID, trainteststring, pretrainpreds, posttrainpreds, epochs) VALUES(\"",
+                    outputOfTraining.stringID[row], "\", \"",
+                    outputOfTraining.modelID[row], "\", \"",
+                    outputOfTraining.TrainOrTest[row], "\", ",
+                    outputOfTraining.initialPreds[row], ", ",
+                    outputOfTraining.trainedPreds[row], ", ",
+                    n_epochs, ");")
+                try
+                    DBInterface.execute(con, query) # push to DB
+                catch
+                    println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", outputOfTraining.stringID[row], ") with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
+                    continue
+                end
+                
             end
-            
-        end
         outputOfTraining = Nothing 
         GC.gc()
-            
+        else
+            println("All models have been trained on GrammarID ", grammarID, ". Moving to next grammar")
+        end
+
     end
     DBInterface.close!(con)
 end
