@@ -75,11 +75,11 @@ println("Opening DB Connection")
     # number of grammars at each level to make 
     numGrammars = 100 # note that it will probably be less than this for a lot of grammars, as there will be many duplicate grammars. Should probably think of a way to make this work better and more efficiently. Currently making duplicates a lot in the grammar maker.
 
-    # number of strings we want per grammar
-    numStrings = 500
+    # number of strings we want per grammar, multiply this by number of errors
+    numStrings = 250
 
     # string length 
-    stringLength = 11   
+    stringLength = 2   
 
     # number of errors we want. Equivalent to n-1 number of classes to classify
     numErrors = 1
@@ -110,7 +110,7 @@ println("Opening DB Connection")
 #end
 
 # Do you want to re-run the database pushes?
-reRunDB = true
+reRunDB = false
 
 ##################################################################################################################################
 # 1. Build grammars
@@ -266,7 +266,9 @@ if reRunDB
 
     stringTableCreationQuery = string("CREATE TABLE strings (grammarID INT NOT NULL, string VARCHAR(", stringLength*2, ") NOT NULL, stringLength INT, stringNumber VARCHAR(", stringLength*5, ") NOT NULL, error INT NOT NULL, stringID INT AUTO_INCREMENT NOT NULL PRIMARY KEY, FOREIGN KEY (grammarID) REFERENCES grammars(grammarID));") #string ID is the primary key, foreign key is grammarID which references the grammar table
     DBInterface.execute(con, stringTableCreationQuery)
+end
 
+begin
     # Make grammars and push to DB
 
     println("Creating ", size(grammarsFromDB)[1]*numStrings*(numErrors+1), " strings in the table `strings`")
@@ -296,11 +298,12 @@ if reRunDB
                 for errorNum in 0:numErrors
                     outputString, outputStringAsNum = makeString(alphabet, transitionMatrix, errTransitionMatrix, stringLength, errorNum)
                     insertIntoQuery = string("INSERT INTO strings (grammarID, string, stringNumber, stringLength, error) VALUES(\"",
-                    grammarsFromDB.grammarID[i], "\", \"",
-                    outputString, "\", \"", 
-                    outputStringAsNum, "\", ",
-                    stringLength, ", ",
-                    errorNum, ");")
+                        grammarsFromDB.grammarID[i], "\", \"",
+                        outputString, "\", \"", 
+                        outputStringAsNum, "\", ",
+                        stringLength, ", ",
+                        errorNum, ");"
+                    )
                     DBInterface.execute(con, insertIntoQuery)
                     #println(insertIntoQuery)
                 end
@@ -308,8 +311,6 @@ if reRunDB
         end
 
     end
-else
-    nothing
 end
 
 ##################################################################################################################################

@@ -60,8 +60,9 @@ con = DBInterface.connect(MySQL.Connection, dbHostname, dbUsername, dbPassword, 
 ALPHABET = 'a':'z'
 
 # alphabet length 
-alphabetLength = DBInterface.execute(con, "SELECT alphabetLength FROM grammars LIMIT 1;") |> DataFrame 
-alphabetLength = alphabetLength[1,1] #get the alphabet length
+# alphabetLength = DBInterface.execute(con, "SELECT alphabetLength FROM grammars LIMIT 1;") |> DataFrame 
+# alphabetLength = alphabetLength[1,1] #get the alphabet length
+alphabetLength = 6
 
 # Set seed for randomisers (for DB IDs and for initialising NNs)
 Random.seed!(2022) # may need to work out how to change this for all workers ! 
@@ -69,13 +70,15 @@ Random.seed!(2022) # may need to work out how to change this for all workers !
 # model table
 modelTable = DBInterface.execute(con, "SELECT * FROM models;") |> DataFrame
 
-# number of errors
-numErrors = DBInterface.execute(con, "select MAX(error) from strings;") |> DataFrame
-numErrors = numErrors[1,1]
+# # number of errors
+# numErrors = DBInterface.execute(con, "select MAX(error) from strings;") |> DataFrame
+# numErrors = numErrors[1,1]
+numErrors = 1
 
-# string length
-stringLength = DBInterface.execute(con, "SELECT stringLength FROM strings LIMIT 1;") |> DataFrame
-stringLength = stringLength[1,1]
+# # string length
+# stringLength = DBInterface.execute(con, "SELECT stringLength FROM strings LIMIT 1;") |> DataFrame
+# stringLength = stringLength[1,1]
+stringLength = 2
 
 # Number of epochs to run the training for
 n_epochs = 100
