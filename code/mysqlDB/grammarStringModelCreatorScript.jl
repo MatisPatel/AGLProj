@@ -320,7 +320,7 @@ if reRunDB
 
     println("Creating DB Table")
     DBInterface.execute(con, "DROP TABLE IF EXISTS models;") #drop any existing table, just in case.
-    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(1000), neurons INT, layers INT, laminations INT, recurrentlayers INT, recurrentend VARCHAR(10));") # create a table of the models 
+    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, neurons INT, layers INT, laminations INT, recurrentlayers INT, recurrentend VARCHAR(10), UNIQUE (neurons, layers, laminations, recurrentlayers, recurrentend));") # create a table of the models 
 
     # Push models to DB and save to a list for training later. 
 
@@ -331,8 +331,7 @@ if reRunDB
                     try
                         model = createModel(numNeurons, numLayers, lams, numErrors, stringLength, alphabetLength)
                         
-                        query = string("INSERT INTO models (name, neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(", "\"",
-                                string(model), "\", ",
+                        query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
                                 numNeurons, ", ",
                                 numLayers, ", ",
                                 lams, ", ",
@@ -353,8 +352,7 @@ if reRunDB
                     if rec_layers <= numLayers
                         try
                             model = createRecurrentModel(numNeurons, numLayers, rec_layers, 0, _end, numErrors, stringLength, alphabetLength)
-                            query = string("INSERT INTO models (name, neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(", "\"",
-                                string(model), "\", ",
+                            query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
                                 numNeurons, ", ",
                                 numLayers, ", ",
                                 "0, ",
