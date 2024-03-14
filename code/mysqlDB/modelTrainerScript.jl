@@ -131,7 +131,7 @@ begin
 
         #println("Training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
         grammarID = grammarsFromDB.grammarID[grammarNum]
-        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, ";") #write the query to get the strings for the ith grammar
+        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, "AND stringLength = ", stringLength, ";") #write the query to get the strings for the ith grammar with the appropriate string number
         stringsFromGrammar = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
 
         trainingData = stringsFromGrammar
