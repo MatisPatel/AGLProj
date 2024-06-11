@@ -21,7 +21,7 @@ include(srcdir("utils.jl"))
 
 # Set up database
 
-con = database_connection("database_connection.csv")
+con = database_connect("database_connection.csv")
 
 #######################
 ## SCRIPT PARAMETERS ##
