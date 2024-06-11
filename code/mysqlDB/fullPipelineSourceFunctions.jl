@@ -378,110 +378,155 @@ end
 pen_l2(x::AbstractArray) = sum(abs2, x)/2
 
 # train model function
-function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence, reg_penalty = 0.01)
+function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence, throttle = 0.0001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95))
     
-    #model = Chain(modelFromDB) #convert the string coming from the database into a chain
-    
-    # batch size for each backprop update
-    batchsize = 10 # tended to have good performance 
-    # proportion of strings that will be in test group and not trained on
-    propTests = 0.3
-    # index for cut between training and test groups
-    indx  = Int(floor(length(grammarStrings.string)*(1-propTests)))
-
     # determine size of output layer of network. 
     output_len = maximum(grammarStrings.error)::Int32
 
     # new col in grammarStrings, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
     grammarStrings.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in grammarStrings.error]
 
-    # defining optimiser to use
-    #opt = Momentum(0.01, 0.95) #tended to have good performance
-    opt = ADAM(0.0001)
-    # shuffle for rows
-    grammarStrings = grammarStrings[shuffle(1:size(grammarStrings, 1)), :]
-    # getting chars for alphabet
-    alphabet = collect('a':'z')[1:Int(alphabetLength)]
+    # get train test split
+    train_X, train_Y, test_X, test_Y = train_test_split(grammarStrings, prop_tests, alphabetLength)
 
-    # one hot encoding of strings for training/testing
-    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammarStrings.string]
-
-    # splitting the data ito train/test and strings and truth. 
-    train_X = strings[1:indx]
-    train_Y = grammarStrings.encodedErrors[1:indx]' 
-    test_X = strings[indx+1:end]
-    test_Y = grammarStrings.encodedErrors[indx+1:end]' 
-
-    # list comp to make tuples for each batch 
-    train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batchsize)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
-
+    # batch up the training data
+    train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batch_size)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
 
     # make train/test columns for pretraining
     Train =  ["Train"]
     Test = ["Test"]
-    grammarStrings.TrainOrTest = vcat(repeat(Train, indx), repeat(Test, length(strings[indx+1:end])))
+    grammarStrings.TrainOrTest = vcat(repeat(Train, length(train_X)), repeat(Test, length(strings[length(train_X)+1:end])))
 
     if recurrence
         Flux.reset!(model)
     end
 
     # test the model out on the strings we have, before we train the model
-    modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
-    categories_trainX = cumprod(modout_trainX, dims=1)
-    preds_trainX = sum(categories_trainX, dims=1) .== train_Y # this is giving all 0s, why?
-
-    if recurrence
-        Flux.reset!(model)
-    end
-    modout_testX = model(cat(test_X..., dims=2)) .>= 0.5
-    categories_testX = cumprod(modout_testX, dims=1)
-    preds_testX = sum(categories_testX, dims=1) .== test_Y
-
-    grammarStrings.initialPreds = Int.(vec(hcat(preds_trainX, preds_testX)))
+    probs_trainX = model(cat(train_X..., dims=2))
+    # modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
+    # categories_trainX = cumprod(modout_trainX, dims=1)
+    # preds_trainX = sum(categories_trainX, dims=1)
+    # acc_trainX = sum(categories_trainX, dims=1) .== [Bool(x[1]) for x in train_Y]
 
     if recurrence
         Flux.reset!(model)
     end
 
-    begin
-        for epoch in 1:n_epochs
-            ps = Flux.params(model)
-            #loss(x, y) = sum(Flux.Losses.binarycrossentropy(model(x), y))
-            penalty() = sum(pen_l2, ps)
-            loss(x, y) = Flux.Losses.binarycrossentropy(model(x), y) + (reg_penalty * penalty())
-            println("Penalty: ", penalty())
-            Flux.train!(loss, ps, train_dat, opt)    
-        end
+    probs_testX = model(cat(test_X..., dims=2))
+
+    grammarStrings.initialProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
+
+    if recurrence
+        Flux.reset!(model)
     end
 
+    model, acc_and_losses = training_loop(model, opt, train_dat, train_X, train_Y, test_X, test_Y, n_epochs)
 
     if recurrence
         Flux.reset!(model)
     end
 
     testmode!(model) #if there are dropout layers
-    # test the model out on the strings we have, before we train the model
-    modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
-    categories_trainX = cumprod(modout_trainX, dims=1)
-    preds_trainX = sum(categories_trainX, dims=1)
+    # test the model out on the strings we have, after we train the model
+    probs_trainX = model(cat(train_X..., dims=2))
+    
+    if recurrence
+        Flux.reset!(model)
+    end
+
+    probs_testX = model(cat(test_X..., dims=2))
+
+    grammarStrings.trainedProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
     if recurrence
         Flux.reset!(model)
     end
 
-    modout_testX = model(cat(test_X..., dims=2)) .>= 0.5
-    categories_testX = cumprod(modout_testX, dims=1)
-    preds_testX = sum(categories_testX, dims=1)
-
-    grammarStrings.trainedPreds = Int.(vec(hcat(preds_trainX, preds_testX)))
-
-    if recurrence
-        Flux.reset!(model)
-    end
-
-    # make column of modelUUIDs
+    # make column of modelIDs
 
     grammarStrings.modelID = vcat(repeat([modelID], length(strings)))
 
-    return grammarStrings
+    return grammarStrings, acc_and_losses
+end
+
+
+function brier_score(model, train_X, train_Y)
+    preds = model(cat(train_X..., dims=2))
+    outs = [Bool(x[1]) for x in train_Y]
+    BS = 1/length(outs) * sum(sum(square.(preds - outs), dims=1), dims=2)
+    return BS[1,1]
+end
+
+square(n) = n * n
+
+function stop_early(prev_loss, current_loss, min_diff)
+    diff = prev_loss - current_loss
+    if diff < min_diff && diff >= 0
+        return true
+    else
+        return false
+    end
+end
+
+function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, throttle = 0.00001, verbose = true)
+    acc_losses = DataFrame(modelID = Int32[],
+                           grammarID = Int32[], 
+                           epoch = Int32[],
+                           batch = Int32[],
+                           loss = Float32[],
+                           train_brier = Float32[],
+                           test_brier = Float32[],
+                           throttle = Float32[])
+         
+    opt_state = Flux.setup(opt, model)
+    prev_loss = 100 #set it high so training runs for at least one epoch
+    batch = 1
+    for epoch in 1:n_epochs
+        break_train = false
+        for (x, y) in train_dat 
+            curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
+            Flux.update!(opt_state, model, gs[1])
+            dataframe = DataFrame(modelID = modelID,
+                                  grammarID = grammarStrings.grammarID[1],
+                                  epoch = epoch,
+                                  batch = batch,
+                                  loss = curr_loss,
+                                  train_brier = brier_score(model, train_x, train_y),
+                                  test_brier = brier_score(model, test_x, test_y),
+                                  throttle = throttle)
+            append!(acc_losses, dataframe)
+            if stop_early(prev_loss, curr_loss, throttle)
+                println("Stopped early as loss stopped changing")
+                break_train = true  
+                break
+            end
+            prev_loss = curr_loss
+            batch += 1
+        end
+        if (mod(epoch, 10) == 1 || break_train) && verbose
+            @info "After epoch = $epoch" dataframe.loss[end] dataframe.train_brier[end] dataframe.test_brier[end]
+        end
+        if break_train
+            break
+        end
+    end
+
+    return model, acc_losses
+end
+
+
+function train_test_split(grammar_strings, prop, alphabetLength)
+    indx  = Int(floor(length(grammar_strings.string)*(1-prop)))
+
+    alphabet = collect('a':'z')[1:Int(alphabetLength)]
+
+    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammar_strings.string]
+
+    # splitting the data ito train/test and strings and truth. 
+    train_X = strings[1:indx]
+    train_Y = grammar_strings.encodedErrors[1:indx]' 
+    test_X = strings[indx+1:end]
+    test_Y = grammar_strings.encodedErrors[indx+1:end]'
+
+    return train_X, train_Y, test_X, test_Y
 end
