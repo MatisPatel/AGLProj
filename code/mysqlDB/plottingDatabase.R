@@ -35,7 +35,7 @@ trainedmodels.pretrainpreds,
 trainedmodels.posttrainpreds FROM grammars 
 JOIN strings ON grammars.grammarID = strings.grammarID 
 JOIN trainedmodels ON strings.stringID = trainedmodels.stringID
-JOIN models ON trainedmodels.modelID = models.modelID"
+JOIN models ON trainedmodels.modelID = models.modelID WHERE strings.stringLength = 2;"
 
 trainedData <- dbGetQuery(myDB, query)
 
@@ -114,3 +114,44 @@ grammars.cor <- cor(grammars, method = c("spearman"))
            outline.col = "white",lab = TRUE))
 
 ggsave("./results/plots/entropyCorrelations.png")
+
+
+## Bigram Beta Regression
+
+library(zoib)
+
+clean_data_bigrams <- clean_data %>%
+  mutate(accuracy = ifelse(accuracy == 1, 0.9999, ifelse(accuracy == 0, 0.0001, accuracy)))
+
+fit_beta <- glmmTMB(accuracy ~ neurons + laminations*recurrentlayers + layers + topentropy + (1|grammarID) + (1|modelID), family = beta_family(), data = clean_data_bigrams)
+
+sink("./results/regressions/beta_regression_bigrams.txt")
+
+cat("Beta regression on the aggregate performance of ", length(unique(clean_data_bigrams$modelID)), " networks on ", length(unique(clean_data_bigrams$grammarID)), " different grammars.\n")
+summary(fit_beta)
+
+sink()
+
+(laminationsAccPlot <- clean_data %>% ggplot(aes(x = laminations, y = accuracy)) + 
+    geom_jitter() + stat_smooth(method = "glm"))
+
+ggsave("./results/plots/laminationPlotBigramGLM.png")
+
+(layersAccPlot <- clean_data %>% ggplot(aes(x = layers, y = accuracy)) + 
+    geom_jitter() + stat_smooth(method = "glm"))
+
+ggsave("./results/plots/layerPlotBigramGLM.png")
+
+(neuronsAccPlot <- clean_data %>% ggplot(aes(x = neurons, y = accuracy)) + 
+    geom_jitter() + stat_smooth(method = "glm"))
+
+ggsave("./results/plots/neuronPlotBigramGLM.png")
+
+(reclayersAccPlot <- clean_data %>% ggplot(aes(x = recurrentlayers, y = accuracy)) + 
+    geom_jitter() + stat_smooth(method = "glm"))
+
+ggsave("./results/plots/recurrentLayersPlotBigramGLM.png")
+
+## zero-or-one inflated beta regression
+
+#fit_beta <- zoib(accuracy ~ neurons + laminations*recurrentlayers + layers + topentropy + (1|grammarID) + (1|modelID), data = clean_data_bigrams, zero.inflation = TRUE, one.inflation = FALSE, n.iter = 5000, n.thin )

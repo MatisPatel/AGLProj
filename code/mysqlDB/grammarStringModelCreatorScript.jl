@@ -324,7 +324,7 @@ if reRunDB
     DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, neurons INT, layers INT, laminations INT, recurrentlayers INT, recurrentend VARCHAR(10), UNIQUE (neurons, layers, laminations, recurrentlayers, recurrentend));") # create a table of the models 
 
     # Push models to DB and save to a list for training later. 
-
+else
     for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
         for numLayers in minNumLayers:maxNumLayers
             for lams in 1:maxNumLaminations
@@ -337,7 +337,7 @@ if reRunDB
                                 numLayers, ", ",
                                 lams, ", ",
                                 string(0),
-                                ", NULL);"
+                                ", \"ff\");"
                             )
                 
                         DBInterface.execute(con, query) # push to DB
@@ -345,25 +345,25 @@ if reRunDB
                     catch
                         println("There is a problem with this feedforward model... Number of neurons=", numNeurons, "; Number of layers=", numLayers, "; Number of laminations=", lams, ".")
                     end
-                end
-            end
 
-            for _end in ["in", "out"]
-                for rec_layers in 1:maxNumLayers
-                    if rec_layers <= numLayers
-                        try
-                            model = createRecurrentModel(numNeurons, numLayers, rec_layers, 0, _end, numErrors, stringLength, alphabetLength)
-                            query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
-                                numNeurons, ", ",
-                                numLayers, ", ",
-                                "0, ",
-                                rec_layers, ", \"",
-                                _end, "\");"
-                            )
+                    for _end in ["in", "out"]
+                        for rec_layers in 1:maxNumLayers
+                            if rec_layers <= numLayers
+                                try
+                                    model = createRecurrentModel(numNeurons, numLayers, rec_layers, lams, _end, numErrors, stringLength, alphabetLength)
+                                    query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
+                                                numNeurons, ", ",
+                                                numLayers, ", ",
+                                                lams, ", ",
+                                                rec_layers, ", \"",
+                                                _end, "\");"
+                                    )
 
-                            DBInterface.execute(con, query) # push to DB
-                        catch
-                            println("There is a problem with this recurrent model... Number of neurons=", numNeurons, "; Number of hidden layers=", numLayers, "; Number of laminations=0", "; Number of recurrent layers=", rec_layers, "; End of network that recurrent layers start=", _end, ".")
+                                    DBInterface.execute(con, query) # push to DB
+                                catch
+                                    println("There is a problem with this recurrent model... Number of neurons=", numNeurons, "; Number of hidden layers=", numLayers, "; Number of laminations=", lams, "; Number of recurrent layers=", rec_layers, "; End of network that recurrent layers start=", _end, ".")
+                                end
+                            end
                         end
                     end
                 end
