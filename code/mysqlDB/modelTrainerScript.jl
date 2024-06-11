@@ -95,7 +95,7 @@ grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFram
 # @everywhere begin
 modelList = [] 
 for row in 1:nrow(modelTable)
-    if ismissing(modelTable[row,7]) #not recurrent as no "in" or "out" specification
+    if modelTable[row,6] == "ff" #not recurrent as no "in" or "out" specification
         modelChain = createModel(modelTable.neurons[row], modelTable.layers[row], modelTable.laminations[row], numErrors, stringLength, alphabetLength)
         push!(modelList, (modelChain, modelTable.modelID[row], "feedforward"))
     else
@@ -120,8 +120,23 @@ else
     catch
         println("The `trainedmodels` table already exists. Delete the table or skip these lines and add more data to the database.")
     finally
-        trainedModelsInDB = DBInterface.execute(con, "SELECT trainedmodels.modelID, strings.grammarID FROM trainedmodels JOIN strings ON trainedmodels.stringID = strings.stringID;") |> DataFrame
+        global trainedModelsInDB = DBInterface.execute(con, "SELECT trainedmodels.modelID, strings.grammarID FROM trainedmodels JOIN strings ON trainedmodels.stringID = strings.stringID;") |> DataFrame
         unique!(trainedModelsInDB)
+    end
+end
+
+## Create losses and accuracies table
+
+rerunDB = false
+
+if rerunDB
+    DBInterface.execute(con, "DROP TABLE IF EXISTS accuracieslosses;")
+    DBInterface.execute(con, "CREATE TABLE accuracieslosses (modelID INT NOT NULL, grammarID INT NOT NULL, epoch INT NOT NULL, batch INT NOT NULL, loss FLOAT NOT NULL, trainbrier FLOAT NOT NULL, testbrier FLOAT NOT NULL, throttle FLOAT NOT NULL, UNIQUE (modelID, grammarID, epoch, batch));")
+else
+    try
+        DBInterface.execute(con, "CREATE TABLE accuracieslosses (modelID INT NOT NULL, grammarID INT NOT NULL, epoch INT NOT NULL, batch INT NOT NULL, loss FLOAT NOT NULL, trainbrier FLOAT NOT NULL, testbrier FLOAT NOT NULL, throttle FLOAT NOT NULL, UNIQUE (modelID, grammarID, epoch, batch));")
+    catch
+        println("The `accuracieslosses` table already exists. Delete the table or skip these lines and add more data to the database.")
     end
 end
 
@@ -131,7 +146,7 @@ begin
 
         #println("Training on thread: ", Threads.threadid(), " for grammar: ", grammarNum)
         grammarID = grammarsFromDB.grammarID[grammarNum]
-        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, "AND stringLength = ", stringLength, ";") #write the query to get the strings for the ith grammar with the appropriate string number
+        grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, " AND stringLength = ", stringLength, ";") #write the query to get the strings for the ith grammar with the appropriate string number
         stringsFromGrammar = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
 
         trainingData = stringsFromGrammar
@@ -150,9 +165,9 @@ begin
                 else
                     println("Type of network not recognised.")
                 end
-                global outputOfTraining = append!(outputOfTraining, nextModelOutputOfTraining, promote = true)
+                append!(outputOfTraining, nextModelOutputOfTraining)
             else
-                println("Model ID ", modelID, "has already been trained on Grammar ID ", grammarID, ". Moving on.")
+                println("Model ID ", modelID, " `has already been trained on Grammar ID ", grammarID, ". Moving on.")
             end
         end
         
