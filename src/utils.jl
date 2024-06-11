@@ -530,3 +530,27 @@ function train_test_split(grammar_strings, prop, alphabetLength)
 
     return train_X, train_Y, test_X, test_Y
 end
+
+
+function database_connect(csv_name) 
+    csv_location = projectdir("src", csv_name)
+    if isfile(csv_location)
+        database_connection = CSV.File(csv_location) |> DataFrame
+
+        dbName = database_connection.Value[1]
+        dbUsername = database_connection.Value[2]
+        dbPassword = database_connection.Value[3]
+        dbHostname = database_connection.Value[4]
+
+        println("Opening DB Connection")
+        con = DBInterface.connect(MySQL.Connection, 
+                                  dbHostname,
+                                  dbUsername, 
+                                  dbPassword, 
+                                  db = dbName) 
+
+        return con
+    else
+        error("Database connection csv not found. Please add it to the src folder.")
+    end
+end

@@ -5,27 +5,10 @@
 # MySQL version: 8.0.31
 #################################################################################################################################
 
-library(dplyr)
-library(ggplot2)
-library(ggcorrplot)
-library(haven)
-library(DBI)
-library(RMariaDB)
-library(lme4)
-library(glmmTMB)
+here::i_am("scripts/R/plottingDatabase.R")
+box::use(./src/utils[database.connect])
 
-
-## DB Connection
-
-database_connection <- read.csv("./code/mysqlDB/database_connection.csv")
-
-dbName = database_connection$Value[1]
-dbUsername = database_connection$Value[2]
-dbPassword = database_connection$Value[3]
-dbHostname = database_connection$Value[4]
-dbPort = 3306
-
-myDB <- dbConnect(MariaDB(), user = dbUsername, password = dbPassword, dbname = dbName, host = dbHostname, port = dbPort)
+myDB <- database.connect()
 
 
 ## Query the database

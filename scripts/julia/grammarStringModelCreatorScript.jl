@@ -14,46 +14,15 @@
 #################################################################################################################################
 # 0. Preamble
 
-# Load packages
-#using Distributed 
-# addprocs(n) to add n extra workers 
-# @everywhere import Pkg; Pkg.instantiate() # run this if you need to install the packages on each worker
-# @everywhere import Pkg; Pkg.add("SharedArrays"); Pkg.add("Distributed"); Pkg.add("StatsBase"); Pkg.add("LinearAlgebra"); Pkg.add("DataFrames"); Pkg.add("CSV"); Pkg.add("Random"); Pkg.add("MySQL"); Pkg.add("Flux"); Pkg.add("Revise"); Pkg.add("ProgressMeter") # add whatever packages aren't installed on your workers
+using DrWatson
+@quickactivate "AGLProj"
+using StatsBase, LinearAlgebra, DataFrames, CSV, Random, MySQL, Flux
 
-#@everywhere begin
-    using SharedArrays
-    using Distributed
-    using StatsBase
-    using LinearAlgebra
-    using DataFrames
-    using CSV
-    using Random
-    using MySQL
-    using Flux 
-    #using Revise
-    #using ProgressMeter
-    include("fullPipelineSourceFunctions.jl")
-#end
+include(srcdir("utils.jl"))
 
 # Set up database
 
-database_connection = CSV.File("./code/mysqlDB/database_connection.csv") |> DataFrame
-
-dbName = database_connection.Value[1]
-dbUsername = database_connection.Value[2]
-dbPassword = database_connection.Value[3]
-dbHostname = database_connection.Value[4]
-
-#println("Opening DB Connection")
-#con = DBInterface.connect(MySQL.Connection, "5.67.9.60", # for pi connection
-#"user", "password", db = dbName) # set up connection
-
-println("Opening DB Connection")
-#@everywhere begin
-    con = DBInterface.connect(MySQL.Connection, dbHostname,
-    dbUsername, dbPassword, db = dbName) # set up connection
-#end
-
+con = database_connection("database_connection.csv")
 
 #######################
 ## SCRIPT PARAMETERS ##

@@ -1,4 +1,5 @@
 *.csv
+!src/user_database_connection.csv
 *KV.jl
 *.bson 
 *.html
