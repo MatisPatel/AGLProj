@@ -1,53 +1,38 @@
 ## Functions for pipeline
 using Combinatorics, DataFrames, Flux, LinearAlgebra, Logging, Random, StatsBase
 
-# 1. Build grammars
+#==================================================================================#
+# 0. General helper functions
 
-# Define some functions we will need 
+#Square function
+square(n) = n * n
 
-# Grammar Entropy function - get the entropy of the grammar, as the largest absolute eigenvalue of the grammar transition matrix
+# Database connection function
+function database_connect(csv_name) 
+    csv_location = projectdir("src", csv_name)
+    if isfile(csv_location)
+        database_connection = CSV.File(csv_location) |> DataFrame
 
-function eigenvalueEntropy(eigenvalues)
-    # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
+        dbName = database_connection.Value[1]
+        dbUsername = database_connection.Value[2]
+        dbPassword = database_connection.Value[3]
+        dbHostname = database_connection.Value[4]
 
-    absolute_values = abs.(eigenvalues)
-    sum_values = sum(abs.(eigenvalues))
+        println("Opening DB Connection")
+        con = DBInterface.connect(MySQL.Connection, 
+                                  dbHostname,
+                                  dbUsername, 
+                                  dbPassword, 
+                                  db = dbName) 
 
-    scaled_logged_values = (absolute_values./sum_values) .* log.(absolute_values./sum_values)
-
-    entropy = -1 * (sum(scaled_logged_values))
-
-    return entropy
-end
-
-function grammarEntropy(adjacencyMatrix, inDegreeLaplacian = nothing, signlessInDegreeLaplacian = nothing)
-    
-    if inDegreeLaplacian === nothing && inDegreeSignlessLaplacian === nothing
-        topEntropy = abs(eigvals(adjacencyMatrix)[end])
-        return topEntropy
-    else 
-        
-        topEntropy = abs(eigvals(adjacencyMatrix)[end])
-
-        adjMatrixEigenvalues = eigvals(adjacencyMatrix)
-        adjMatrixRealEntropy = eigenvalueEntropy(real.(adjMatrixEigenvalues))
-        adjMatrixImaginaryEntropy = eigenvalueEntropy(imag.(adjMatrixEigenvalues))
-        adjMatrixModulusEntropy = eigenvalueEntropy(abs.(adjMatrixEigenvalues))
-
-        inDegreeLaplacianEigenvalues = eigvals(inDegreeLaplacian)
-        inDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(inDegreeLaplacianEigenvalues))
-        inDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(inDegreeLaplacianEigenvalues))
-        inDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(inDegreeLaplacianEigenvalues))
-
-        signlessInDegreeLaplacianEigenvalues = eigvals(signlessInDegreeLaplacian)
-        signlessInDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(signlessInDegreeLaplacianEigenvalues))
-        signlessInDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(signlessInDegreeLaplacianEigenvalues))
-        signlessInDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(signlessInDegreeLaplacianEigenvalues))
-
-        return topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy
-
+        return con
+    else
+        error("Database connection csv not found. Please add it to the src folder.")
     end
 end
+
+#==================================================================================#
+# 1. Grammar functions
 
 # Checking Connectedness of grammar - check whether the grammar is connected.
 
@@ -122,8 +107,52 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
     return grammar, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian
 end
 
-#################################################################################################################################
-# 2. Make grammar strings
+# Grammar Entropy function - get the entropy of the grammar, as the largest absolute eigenvalue of the grammar transition matrix
+
+function eigenvalueEntropy(eigenvalues)
+    # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
+
+    absolute_values = abs.(eigenvalues)
+    sum_values = sum(abs.(eigenvalues))
+
+    scaled_logged_values = (absolute_values./sum_values) .* log.(absolute_values./sum_values)
+
+    entropy = -1 * (sum(scaled_logged_values))
+
+    return entropy
+end
+
+function grammarEntropy(adjacencyMatrix, inDegreeLaplacian = nothing, signlessInDegreeLaplacian = nothing)
+    
+    if inDegreeLaplacian === nothing && inDegreeSignlessLaplacian === nothing
+        topEntropy = abs(eigvals(adjacencyMatrix)[end])
+        return topEntropy
+    else 
+        
+        topEntropy = abs(eigvals(adjacencyMatrix)[end])
+
+        adjMatrixEigenvalues = eigvals(adjacencyMatrix)
+        adjMatrixRealEntropy = eigenvalueEntropy(real.(adjMatrixEigenvalues))
+        adjMatrixImaginaryEntropy = eigenvalueEntropy(imag.(adjMatrixEigenvalues))
+        adjMatrixModulusEntropy = eigenvalueEntropy(abs.(adjMatrixEigenvalues))
+
+        inDegreeLaplacianEigenvalues = eigvals(inDegreeLaplacian)
+        inDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(inDegreeLaplacianEigenvalues))
+        inDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(inDegreeLaplacianEigenvalues))
+        inDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(inDegreeLaplacianEigenvalues))
+
+        signlessInDegreeLaplacianEigenvalues = eigvals(signlessInDegreeLaplacian)
+        signlessInDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(signlessInDegreeLaplacianEigenvalues))
+        signlessInDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(signlessInDegreeLaplacianEigenvalues))
+        signlessInDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(signlessInDegreeLaplacianEigenvalues))
+
+        return topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy
+
+    end
+end
+
+#==================================================================================#
+# 2. Generate strings
 
 # String maker function
 
@@ -149,10 +178,8 @@ function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an 
     return join(alphabet[str_idxs]), str_idxs, where_errors
 end
 
-#################################################################################################################################
-# 2.1 Make grammar strings from raised grammar
+# Make grammar strings from raised grammar
 
-# String maker function
 #genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
 
 function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
@@ -177,8 +204,8 @@ function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, err
     end 
     return str_idxs, where_errors
 end
-#makeString(alphabet, grammar, err_grammar, n_raised, str_len, errors)
-##################################################################################################################################
+
+#==================================================================================#
 # 3. Define models 
 
 # Create models function
@@ -319,7 +346,90 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
     return model
 end
 
-###################################################################################################################################
+#==================================================================================#
+# 4. Model training functions
+
+# Early stopping function when loss stops changing
+function stop_early(prev_loss, current_loss, min_diff)
+    diff = prev_loss - current_loss
+    if diff < min_diff && diff >= 0
+        return true
+    else
+        return false
+    end
+end
+
+# Define Brier Score function
+function brier_score(model, train_X, train_Y)
+    preds = model(cat(train_X..., dims=2))
+    outs = [Bool(x[1]) for x in train_Y]
+    BS = 1/length(outs) * sum(sum(square.(preds - outs), dims=1), dims=2)
+    return BS[1,1]
+end
+
+# Training loop function that stores accuracies and brier scores
+function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, throttle = 0.00001, verbose = true)
+    acc_losses = DataFrame(modelID = Int32[],
+                           grammarID = Int32[], 
+                           epoch = Int32[],
+                           batch = Int32[],
+                           loss = Float32[],
+                           train_brier = Float32[],
+                           test_brier = Float32[],
+                           throttle = Float32[])
+         
+    opt_state = Flux.setup(opt, model)
+    prev_loss = 100 #set it high so training runs for at least one epoch
+    batch = 1
+    for epoch in 1:n_epochs
+        break_train = false
+        for (x, y) in train_dat 
+            curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
+            Flux.update!(opt_state, model, gs[1])
+            dataframe = DataFrame(modelID = modelID,
+                                  grammarID = grammarStrings.grammarID[1],
+                                  epoch = epoch,
+                                  batch = batch,
+                                  loss = curr_loss,
+                                  train_brier = brier_score(model, train_x, train_y),
+                                  test_brier = brier_score(model, test_x, test_y),
+                                  throttle = throttle)
+            append!(acc_losses, dataframe)
+            if stop_early(prev_loss, curr_loss, throttle)
+                println("Stopped early as loss stopped changing")
+                break_train = true  
+                break
+            end
+            prev_loss = curr_loss
+            batch += 1
+        end
+        if (mod(epoch, 10) == 1 || break_train) && verbose
+            @info "After epoch = $epoch" dataframe.loss[end] dataframe.train_brier[end] dataframe.test_brier[end]
+        end
+        if break_train
+            break
+        end
+    end
+
+    return model, acc_losses
+end
+
+# Train-test split function
+function train_test_split(grammar_strings, prop, alphabetLength)
+    indx  = Int(floor(length(grammar_strings.string)*(1-prop)))
+
+    alphabet = collect('a':'z')[1:Int(alphabetLength)]
+
+    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammar_strings.string]
+
+    # splitting the data ito train/test and strings and truth. 
+    train_X = strings[1:indx]
+    train_Y = grammar_strings.encodedErrors[1:indx]' 
+    test_X = strings[indx+1:end]
+    test_Y = grammar_strings.encodedErrors[indx+1:end]'
+
+    return train_X, train_Y, test_X, test_Y
+end
 
 # L2 Regularizer helper function
 pen_l2(x::AbstractArray) = sum(abs2, x)/2
@@ -396,108 +506,4 @@ function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, mo
     return grammarStrings, acc_and_losses
 end
 
-
-function brier_score(model, train_X, train_Y)
-    preds = model(cat(train_X..., dims=2))
-    outs = [Bool(x[1]) for x in train_Y]
-    BS = 1/length(outs) * sum(sum(square.(preds - outs), dims=1), dims=2)
-    return BS[1,1]
-end
-
-square(n) = n * n
-
-function stop_early(prev_loss, current_loss, min_diff)
-    diff = prev_loss - current_loss
-    if diff < min_diff && diff >= 0
-        return true
-    else
-        return false
-    end
-end
-
-function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, throttle = 0.00001, verbose = true)
-    acc_losses = DataFrame(modelID = Int32[],
-                           grammarID = Int32[], 
-                           epoch = Int32[],
-                           batch = Int32[],
-                           loss = Float32[],
-                           train_brier = Float32[],
-                           test_brier = Float32[],
-                           throttle = Float32[])
-         
-    opt_state = Flux.setup(opt, model)
-    prev_loss = 100 #set it high so training runs for at least one epoch
-    batch = 1
-    for epoch in 1:n_epochs
-        break_train = false
-        for (x, y) in train_dat 
-            curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
-            Flux.update!(opt_state, model, gs[1])
-            dataframe = DataFrame(modelID = modelID,
-                                  grammarID = grammarStrings.grammarID[1],
-                                  epoch = epoch,
-                                  batch = batch,
-                                  loss = curr_loss,
-                                  train_brier = brier_score(model, train_x, train_y),
-                                  test_brier = brier_score(model, test_x, test_y),
-                                  throttle = throttle)
-            append!(acc_losses, dataframe)
-            if stop_early(prev_loss, curr_loss, throttle)
-                println("Stopped early as loss stopped changing")
-                break_train = true  
-                break
-            end
-            prev_loss = curr_loss
-            batch += 1
-        end
-        if (mod(epoch, 10) == 1 || break_train) && verbose
-            @info "After epoch = $epoch" dataframe.loss[end] dataframe.train_brier[end] dataframe.test_brier[end]
-        end
-        if break_train
-            break
-        end
-    end
-
-    return model, acc_losses
-end
-
-
-function train_test_split(grammar_strings, prop, alphabetLength)
-    indx  = Int(floor(length(grammar_strings.string)*(1-prop)))
-
-    alphabet = collect('a':'z')[1:Int(alphabetLength)]
-
-    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammar_strings.string]
-
-    # splitting the data ito train/test and strings and truth. 
-    train_X = strings[1:indx]
-    train_Y = grammar_strings.encodedErrors[1:indx]' 
-    test_X = strings[indx+1:end]
-    test_Y = grammar_strings.encodedErrors[indx+1:end]'
-
-    return train_X, train_Y, test_X, test_Y
-end
-
-
-function database_connect(csv_name) 
-    csv_location = projectdir("src", csv_name)
-    if isfile(csv_location)
-        database_connection = CSV.File(csv_location) |> DataFrame
-
-        dbName = database_connection.Value[1]
-        dbUsername = database_connection.Value[2]
-        dbPassword = database_connection.Value[3]
-        dbHostname = database_connection.Value[4]
-
-        println("Opening DB Connection")
-        con = DBInterface.connect(MySQL.Connection, 
-                                  dbHostname,
-                                  dbUsername, 
-                                  dbPassword, 
-                                  db = dbName) 
-
-        return con
-    else
-        error("Database connection csv not found. Please add it to the src folder.")
-    end
-end
+#==================================================================================#
