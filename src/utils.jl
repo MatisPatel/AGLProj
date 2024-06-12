@@ -35,7 +35,6 @@ end
 # 1. Grammar functions
 
 # Checking Connectedness of grammar - check whether the grammar is connected.
-
 function checkConnected(grammar)
     N = size(grammar)[1]
     gramN = grammar^N
@@ -44,7 +43,6 @@ function checkConnected(grammar)
 end
 
 # Check full transitions of grammar - check whether every state can be transitioned out of, no 0s on any rows
-
 function checkTransitionsFull(grammar)
     # println("check trans")
     rowSums = sum(grammar, dims=2)
@@ -53,7 +51,6 @@ function checkTransitionsFull(grammar)
 end
 
 # Generate fully connected, fully transitioned grammars with and without loops (loops = same state can be visited multiple times sequentially)
-
 function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
     done = false
     grammar = nothing
@@ -107,8 +104,7 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
     return grammar, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian
 end
 
-# Grammar Entropy function - get the entropy of the grammar, as the largest absolute eigenvalue of the grammar transition matrix
-
+# Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
 function eigenvalueEntropy(eigenvalues)
     # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
 
@@ -122,6 +118,7 @@ function eigenvalueEntropy(eigenvalues)
     return entropy
 end
 
+# Grammar Entropy function - get the various entropies of the grammar
 function grammarEntropy(adjacencyMatrix, inDegreeLaplacian = nothing, signlessInDegreeLaplacian = nothing)
     
     if inDegreeLaplacian === nothing && inDegreeSignlessLaplacian === nothing
@@ -155,7 +152,6 @@ end
 # 2. Generate strings
 
 # String maker function
-
 function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
     str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
     alphSize = length(alphabet) # get length of alphabet
@@ -179,9 +175,7 @@ function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an 
 end
 
 # Make grammar strings from raised grammar
-
 #genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
-
 function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
     str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
     moras = genMoras(alphabet, n_raised)
@@ -209,7 +203,6 @@ end
 # 3. Define models 
 
 # Create models function
-
 function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
     if numLayers == 1 && numLaminations > 1
