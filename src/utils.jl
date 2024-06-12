@@ -1,10 +1,6 @@
 ## Functions for pipeline
-using DataFrames
-using Random
-using LinearAlgebra
-using StatsBase
-using Combinatorics
-using Flux
+using Combinatorics, DataFrames, Flux, LinearAlgebra, Logging, Random, StatsBase
+
 # 1. Build grammars
 
 # Define some functions we will need 
@@ -187,31 +183,29 @@ end
 
 # Create models function
 
-# function createModel(numNeurons, numLayers, numClasses, lengthStrings, lengthAlphabet, activation_func = sigmoid)
-#     # Takes number of neurons, number of layers, number of classes (i.e., errors), length of strings, and length of alphabet 
-#     splits = Int.(sort([floor(numNeurons*(k+1)/numLayers) - floor(numNeurons*k / numLayers) for k in 1:numLayers], rev=true))
-#     if (length(splits) == 1)
-#         model = Chain(
-#             Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
-#             Dense(splits[end], numClasses, sigmoid)
-#         )
-#     else
-#         model = Chain(
-#             Dense(lengthStrings*lengthAlphabet, splits[1], activation_func),
-#             [Dense(splits[i], splits[i+1], activation_func) for i in 1:(length(splits) - 1)]...,
-#             Dense(splits[end], numClasses, sigmoid)
-#         )
-#     end
-#     return model
-# end
-
-function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthStrings, lengthAlphabet)
+function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
+    if numLayers == 1 && numLaminations > 1
+        @warn "Number of laminations is greater than 1 but number of hidden layers is 1. This is just a single layer fully connected net. Returning false to avoid duplication."
+        return false 
+    end
+
+    if numLaminations > 1 && inputPool && outputPool && numLayers < 4
+        @warn "Number of laminations is greater than 1 with a pooling layer at both ends, but the number of hidden layers is less than 4. This is just a 1-3 layer fully connected net. Returning false to avoid duplication."
+        return false
+    end
+
+    if numLaminations > 1 && (inputPool ⊻ outputPool) && numLayers < 3
+        @warn "Number of laminations is greater than 1 with a pooling layer, but the number of hidden layers is less than 3. This is just a 1-2 layer fully connected net. Returning false to avoid duplication."
+        return false
+    end
+
     lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
                     floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
     for lam_neurons in lam_splits
         if lam_neurons < numLayers
-            return DomainError(numLaminations, "You have defined too many layers for the number of neurons some layers will have no neurons.")
+            @warn "You have defined too many layers for the number of neurons some layers will have no neurons. Returning false to avoid this."
+            return false
         end
     end
     layer_splits = []
@@ -227,148 +221,101 @@ function createModel(numNeurons, numLayers, numLaminations, numClasses, lengthSt
                 #Dense(splits[end], numClasses, sigmoid)
             )
         else
-            branch = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...
-            )
+            if (!inputPool && !outputPool)
+                if recurrence
+                    branch = Chain(
+                        RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 1)]...
+                    )
+                else
+                    branch = Chain(
+                        Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...
+                    )
+                end
+            elseif (inputPool && !outputPool)
+                if recurrence
+                    branch = Chain([RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 1)]...)
+                else
+                    branch = Chain([Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...)
+                end
+            elseif (!inputPool && outputPool)
+                if recurrence
+                    branch = Chain(
+                        RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
+                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...
+                    )
+                else
+                    branch = Chain(
+                        Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...
+                    )
+                end
+            elseif (inputPool && outputPool)
+                if recurrence
+                    branch = Chain([RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...
+                    )
+                else
+                    branch = Chain([Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...
+                    )
+                end
+            else 
+                error("Pooling failure...")
+            end
         end
         push!(branches, branch)
     end
-    model = Chain(
-        Parallel(vcat, branches...),
-        Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
-    )
-    return model
-end
 
-function createRecurrentModel(numNeurons, numHiddenLayers, numRecurrentLayers, numLaminations, recurrenceEnd, numClasses, lengthStrings, lengthAlphabet)
-
-    ## Make some assertions:
-
-    @assert (numHiddenLayers >= numRecurrentLayers) "Number of hidden layers is smaller than the number of recurrent layers. Provide the total number of hidden layers, and the number of those that should be recurrent."
-
-    @assert (numRecurrentLayers > 0) "Number of recurrent layers must be greater than 0. If you want to create a feedforward network, use the createModel function instead."
-
-    @assert (recurrenceEnd == "in" || recurrenceEnd == "out") "The end at which to start adding RNN layers should be defined as \"in\" or \"out\", for 'input' end and 'output' end respectively."
-
-    @assert (numNeurons >= numHiddenLayers) "The number of neurons in the network must be greater than or equal to the total number of hidden layers, otherwise, there will be some layers of length 0."
-
-    @assert (numNeurons >= numLaminations) "You have defined too many layers for the number of neurons some layers will have no neurons."
-
-    if numLaminations == 1
-
-        splits = Int.(sort([floor(numNeurons*(k+1)/numHiddenLayers) - floor(numNeurons*k/numHiddenLayers) for k in 1:numHiddenLayers], rev=true))
-
-        if (numHiddenLayers == 1 && numRecurrentLayers == 1)
-            model = Chain(
-                    RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                    Dense(splits[end], numClasses, sigmoid)
-                )
-        elseif (numHiddenLayers == 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
-            model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                RNN(splits[end-1], splits[end], tanh),
-                Dense(splits[end], numClasses, sigmoid)
+    if (!inputPool && !outputPool)
+        model = Chain(
+            Parallel(vcat, branches...),
+            Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
             )
-        elseif (numHiddenLayers > 1 && numRecurrentLayers == 1 && recurrenceEnd == "in")
+    elseif (inputPool && !outputPool)
+        if recurrence
             model = Chain(
-                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 1)]...,
-                Dense(splits[end], numClasses, sigmoid)
-            )
-        elseif (numHiddenLayers > 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
-            model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 2)]...,
-                RNN(splits[end-1], splits[end], tanh),
-                Dense(splits[end], numClasses, sigmoid)
-            )
-        elseif (numHiddenLayers == numRecurrentLayers && (recurrenceEnd == "in" || recurrenceEnd == "out"))
-            model = Chain(
-                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
-                Dense(splits[end], numClasses, sigmoid)
-            )
-        elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "in")
-            model = Chain(
-                RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
-                [Dense(splits[j], splits[j+1], relu) for j in numRecurrentLayers:(numHiddenLayers-1)]...,
-                Dense(splits[end], numClasses, sigmoid)
-            )
-        elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "out")
-            numDenseLayers = numHiddenLayers - numRecurrentLayers
-            model = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                [Dense(splits[i], splits[i+1], relu) for i in 1:(numDenseLayers - 1)]...,
-                [RNN(splits[j], splits[j+1], tanh) for j in numDenseLayers:(numHiddenLayers-1)]...,
-                Dense(splits[end], numClasses, sigmoid)
-            )
-        else
-            println("Error in nets with 1 lamination.")
-        end
-    else
-            lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
-                    floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
-            for lam_neurons in lam_splits
-                if lam_neurons < numHiddenLayers
-                    return DomainError(numLaminations, "You have defined too many layers for the number of neurons some layers will have no neurons.")
-                end
-            end
-            layer_splits = []
-            for lam_neurons in lam_splits
-                splits = Int.(sort([floor(lam_neurons*(k+1)/numHiddenLayers) - floor(lam_neurons*k / numHiddenLayers) for k in 1:numHiddenLayers], rev=true))
-                push!(layer_splits, splits)
-            end
-            branches = [] 
-                for splits in layer_splits
-                    if (numHiddenLayers == 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
-                        branch = Chain(
-                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                            RNN(splits[end-1], splits[end], tanh)
-                        )
-                    elseif (numHiddenLayers > 1 && numRecurrentLayers == 1 && recurrenceEnd == "in")
-                        branch = Chain(
-                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 1)]...
-                        )
-                    elseif (numHiddenLayers > 2 && numRecurrentLayers == 1 && recurrenceEnd == "out")
-                        branch = Chain(
-                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numHiddenLayers - 2)]...,
-                            RNN(splits[end-1], splits[end], tanh)
-                        )
-                    elseif (numHiddenLayers == numRecurrentLayers && (recurrenceEnd == "in" || recurrenceEnd == "out"))
-                        branch = Chain(
-                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                            [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...
-                        )
-                    elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "in")
-                        branch = Chain(
-                            RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                            [RNN(splits[i], splits[i+1], tanh) for i in 1:(numRecurrentLayers - 1)]...,
-                            [Dense(splits[j], splits[j+1], relu) for j in numRecurrentLayers:(numHiddenLayers-1)]...
-                        )
-                    elseif (numHiddenLayers != numRecurrentLayers && numHiddenLayers > 1 && numRecurrentLayers > 1 && recurrenceEnd == "out")
-                        numDenseLayers = numHiddenLayers - numRecurrentLayers
-                        branch = Chain(
-                            Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                            [Dense(splits[i], splits[i+1], relu) for i in 1:(numDenseLayers - 1)]...,
-                            [RNN(splits[j], splits[j+1], tanh) for j in numDenseLayers:(numHiddenLayers-1)]...
-                        )
-                    else
-                        println("Error in nets with 2+ laminations.")
-                    end
-                    push!(branches, branch)
-                end
-                
-            model = Chain(
+                RNN(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), tanh),
                 Parallel(vcat, branches...),
                 Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
-            )
-        
+                )
+        else
+            model = Chain(
+                Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                Parallel(vcat, branches...),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                )
+        end
+    elseif (!inputPool && outputPool)
+        if recurrence
+            model = Chain(
+                Parallel(vcat, branches...),
+                RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), tanh),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                )
+        else
+            model = Chain(
+                Parallel(vcat, branches...),
+                Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                )
+        end
+    else
+        if recurrence
+            model = Chain(
+                RNN(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), tanh),
+                Parallel(vcat, branches...),
+                RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), tanh),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                )
+        else
+            model = Chain(
+                Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                Parallel(vcat, branches...),
+                Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                )
+        end
     end
-    
     return model
 end
 
