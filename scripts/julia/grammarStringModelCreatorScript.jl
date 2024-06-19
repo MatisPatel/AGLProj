@@ -63,7 +63,7 @@ con = database_connect("database_connection.csv")
     minNumNeurons = 8
 
     # Maximum number of neurons we want in the networks 
-    maxNumNeurons = 80
+    maxNumNeurons = 512
 
     # Increments between neurons
     neuronIncrements = 4 #ensure they are increments that make sense
@@ -72,10 +72,10 @@ con = database_connect("database_connection.csv")
     minNumLayers = 1
 
     # Maximum number of layers we want in the networks
-    maxNumLayers = 8
+    maxNumLayers = 20
 
     # Maximum number of laminations in neural network (assuming increments of 1)
-    maxNumLaminations = 4
+    maxNumLaminations = 8
 #end
 
 # Do you want to re-run the database pushes?
@@ -289,49 +289,33 @@ if reRunDB
     # Make model table
 
     println("Creating DB Table")
-    DBInterface.execute(con, "DROP TABLE IF EXISTS models;") #drop any existing table, just in case.
-    DBInterface.execute(con, "CREATE TABLE models (modelID INT AUTO_INCREMENT PRIMARY KEY, neurons INT, layers INT, laminations INT, recurrentlayers INT, recurrentend VARCHAR(10), UNIQUE (neurons, layers, laminations, recurrentlayers, recurrentend));") # create a table of the models 
+    DBInterface.execute(con, "DROP TABLE IF EXISTS modelatts;") #drop any existing table, just in case.
+    DBInterface.execute(con, "CREATE TABLE modelatts (modelID INT AUTO_INCREMENT PRIMARY KEY, neurons INT, layers INT, laminations INT, recurrence BOOL, inpool BOOL, outpool BOOL, UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool));") # create a table of the models 
 
     # Push models to DB and save to a list for training later. 
-else
-    for numNeurons in minNumNeurons:neuronIncrements:maxNumNeurons
-        for numLayers in minNumLayers:maxNumLayers
-            for lams in 1:maxNumLaminations
-                if lams*numLayers <= numNeurons
-                    try
-                        model = createModel(numNeurons, numLayers, lams, numErrors, stringLength, alphabetLength)
-                        
-                        query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
-                                numNeurons, ", ",
-                                numLayers, ", ",
-                                lams, ", ",
-                                string(0),
-                                ", \"ff\");"
-                            )
-                
-                        DBInterface.execute(con, query) # push to DB
+end
 
-                    catch
-                        println("There is a problem with this feedforward model... Number of neurons=", numNeurons, "; Number of layers=", numLayers, "; Number of laminations=", lams, ".")
-                    end
-
-                    for _end in ["in", "out"]
-                        for rec_layers in 1:maxNumLayers
-                            if rec_layers <= numLayers
-                                try
-                                    model = createRecurrentModel(numNeurons, numLayers, rec_layers, lams, _end, numErrors, stringLength, alphabetLength)
-                                    query = string("INSERT INTO models (neurons, layers, laminations, recurrentlayers, recurrentend) VALUES(",
-                                                numNeurons, ", ",
-                                                numLayers, ", ",
-                                                lams, ", ",
-                                                rec_layers, ", \"",
-                                                _end, "\");"
-                                    )
-
-                                    DBInterface.execute(con, query) # push to DB
-                                catch
-                                    println("There is a problem with this recurrent model... Number of neurons=", numNeurons, "; Number of hidden layers=", numLayers, "; Number of laminations=", lams, "; Number of recurrent layers=", rec_layers, "; End of network that recurrent layers start=", _end, ".")
-                                end
+for neurs in minNumNeurons:neuronIncrements:maxNumNeurons
+    for lays in minNumLayers:maxNumLayers
+        for lams in 1:maxNumLaminations
+            for ipool in [true, false]
+                for opool in [true, false]
+                    for rec in [true, false]
+                        model = createModel(neurs, lays, lams, rec, ipool, opool, numErrors, stringLength, alphabetLength)
+                        if model != false
+                            query = string("INSERT INTO modelatts (neurons, layers, laminations, recurrence, inpool, outpool) VALUES(",
+                                            neurs, ", ",
+                                            lays, ", ",
+                                            lams, ", ",
+                                            rec, ", ",
+                                            ipool, ", ",
+                                            opool, ");"
+                                            )
+                            try
+                                DBInterface.execute(con, query)
+                            catch
+                                println("This model has already been entered into the database")
+                                println(model)
                             end
                         end
                     end
@@ -340,5 +324,5 @@ else
         end
     end
 end
-
+                                
 DBInterface.close!(con) #close the connection

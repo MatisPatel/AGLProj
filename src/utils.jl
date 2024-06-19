@@ -31,6 +31,20 @@ function database_connect(csv_name)
     end
 end
 
+# Check presence of a grammar and a modelID in database
+function checkIfRun(con, grammarID, modelID)
+    query = string("SELECT COUNT(*) FROM modeloutputs INNER JOIN strings ON modeloutputs.stringID = strings.stringID WHERE strings.grammarID = ",
+                   grammarID, " AND modeloutputs.modelID = ", modelID, ";")
+    
+    result = DBInterface.execute(con, query) |> DataFrame
+
+    if result[1,1] > 0
+        return true
+    else
+        return false
+    end
+end
+
 #==================================================================================#
 # 1. Grammar functions
 
@@ -205,6 +219,8 @@ end
 # Create models function
 function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
+    @assert (numLaminations >= 1) "Number of laminations must be greater than 1 (single lamination is just a densely connected network)."
+    
     if numLayers == 1 && numLaminations > 1
         @warn "Number of laminations is greater than 1 but number of hidden layers is 1. This is just a single layer fully connected net. Returning false to avoid duplication."
         return false 
@@ -217,6 +233,11 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
 
     if numLaminations > 1 && (inputPool ⊻ outputPool) && numLayers < 3
         @warn "Number of laminations is greater than 1 with a pooling layer, but the number of hidden layers is less than 3. This is just a 1-2 layer fully connected net. Returning false to avoid duplication."
+        return false
+    end
+
+    if numLaminations == 1 && (inputPool || outputPool)
+        @warn "Number of laminations is 1 but an input and/or an output pooling layer has been requested. Without laminations, these poolings don't make sense. Returning false to avoid duplication."
         return false
     end
 
@@ -238,45 +259,58 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
         if (length(splits) == 1)
             branch = Chain(
                 Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                #Dense(splits[end], numClasses, sigmoid)
             )
         else
             if (!inputPool && !outputPool)
                 if recurrence
                     branch = Chain(
                         RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 1)]...
+                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...,
+                        RNN(splits[end-1], splits[end], tanh)
                     )
                 else
                     branch = Chain(
                         Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...
+                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...,
+                        Dense(splits[end-1], splits[end], relu)
                     )
                 end
             elseif (inputPool && !outputPool)
                 if recurrence
-                    branch = Chain([RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 1)]...)
+                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], tanh),
+                        [RNN(splits[i], splits[i+1], tanh) for i in 2:(length(splits) - 2)]...,
+                        RNN(splits[end-1], splits[end], tanh)
+                        )
                 else
-                    branch = Chain([Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 1)]...)
+                    branch = Chain(Dense(sum([splits[1] for splits in layer_splits]), splits[2], relu),
+                                [Dense(splits[i], splits[i+1], relu) for i in 2:(length(splits) - 2)]...,
+                                Dense(splits[end-1], splits[end], relu)
+                                )
                 end
             elseif (!inputPool && outputPool)
                 if recurrence
                     branch = Chain(
                         RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...
+                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...,
+                        RNN(splits[end-2], splits[end-1], tanh)
                     )
                 else
                     branch = Chain(
                         Dense(lengthStrings*lengthAlphabet, splits[1], relu),
-                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...
+                        [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 3)]...,
+                        Dense(splits[end-2], splits[(length(splits) - 1)], relu)
                     )
                 end
             elseif (inputPool && outputPool)
                 if recurrence
-                    branch = Chain([RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...
+                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], tanh),
+                        [RNN(splits[i], splits[i+1], tanh) for i in 2:(length(splits)-3)]...,
+                        RNN(splits[end-2], splits[end-1], tanh)
                     )
                 else
-                    branch = Chain([Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...
+                    branch = Chain(Dense(sum([splits[1] for splits in layer_splits]), splits[2], relu),
+                        [Dense(splits[i], splits[i+1], relu) for i in 2:(length(splits)-3)]...,
+                        Dense(splits[end-2], splits[end-1], relu)
                     )
                 end
             else 
@@ -353,15 +387,18 @@ function stop_early(prev_loss, current_loss, min_diff)
 end
 
 # Define Brier Score function
-function brier_score(model, train_X, train_Y)
-    preds = model(cat(train_X..., dims=2))
-    outs = [Bool(x[1]) for x in train_Y]
+function brier_score(model, train_x, train_y, recurrence)
+    if recurrence
+        Flux.reset!(model)
+    end
+    preds = model(cat(train_x..., dims=2))
+    outs = [Bool(x[1]) for x in train_y]
     BS = 1/length(outs) * sum(sum(square.(preds - outs), dims=1), dims=2)
     return BS[1,1]
 end
 
 # Training loop function that stores accuracies and brier scores
-function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, throttle = 0.00001, verbose = true)
+function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, modelID, grammarID, recurrence, throttle = 0.000001, verbose = true)
     acc_losses = DataFrame(modelID = Int32[],
                            grammarID = Int32[], 
                            epoch = Int32[],
@@ -376,34 +413,45 @@ function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, 
     batch = 1
     for epoch in 1:n_epochs
         break_train = false
-        for (x, y) in train_dat 
+        for (x, y) in train_dat
+
+            if recurrence
+                Flux.reset!(model)
+            end 
+
             curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
             Flux.update!(opt_state, model, gs[1])
+
             dataframe = DataFrame(modelID = modelID,
-                                  grammarID = grammarStrings.grammarID[1],
+                                  grammarID = grammarID,
                                   epoch = epoch,
                                   batch = batch,
                                   loss = curr_loss,
-                                  train_brier = brier_score(model, train_x, train_y),
-                                  test_brier = brier_score(model, test_x, test_y),
+                                  train_brier = brier_score(model, train_x, train_y, recurrence),
+                                  test_brier = brier_score(model, test_x, test_y, recurrence),
                                   throttle = throttle)
+
             append!(acc_losses, dataframe)
+
             if stop_early(prev_loss, curr_loss, throttle)
                 println("Stopped early as loss stopped changing")
                 break_train = true  
                 break
             end
+
             prev_loss = curr_loss
             batch += 1
         end
         if (mod(epoch, 10) == 1 || break_train) && verbose
-            @info "After epoch = $epoch" dataframe.loss[end] dataframe.train_brier[end] dataframe.test_brier[end]
+            @info "After epoch = $epoch" acc_losses.loss[end] acc_losses.train_brier[end] acc_losses.test_brier[end]
         end
         if break_train
             break
         end
     end
-
+    if recurrence
+        Flux.reset!(model)
+    end
     return model, acc_losses
 end
 
@@ -416,77 +464,77 @@ function train_test_split(grammar_strings, prop, alphabetLength)
     strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammar_strings.string]
 
     # splitting the data ito train/test and strings and truth. 
-    train_X = strings[1:indx]
-    train_Y = grammar_strings.encodedErrors[1:indx]' 
-    test_X = strings[indx+1:end]
-    test_Y = grammar_strings.encodedErrors[indx+1:end]'
+    train_x = strings[1:indx]
+    train_y = grammar_strings.encodedErrors[1:indx]' 
+    test_x = strings[indx+1:end]
+    test_y = grammar_strings.encodedErrors[indx+1:end]'
 
-    return train_X, train_Y, test_X, test_Y
+    return train_x, train_y, test_x, test_y
 end
 
 # L2 Regularizer helper function
 pen_l2(x::AbstractArray) = sum(abs2, x)/2
 
 # train model function
-function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, modelID, recurrence, throttle = 0.0001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95))
+function trainModelOnGrammar(grammar_strings, model, alphabetLength, n_epochs, modelID, recurrence, throttle = 0.000001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95), verbose = true)
     
     # determine size of output layer of network. 
-    output_len = maximum(grammarStrings.error)::Int32
+    output_len = maximum(grammar_strings.error)::Int32
 
-    # new col in grammarStrings, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
-    grammarStrings.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in grammarStrings.error]
+    # new col in grammar_strings, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
+    grammar_strings.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in grammar_strings.error]
 
     # get train test split
-    train_X, train_Y, test_X, test_Y = train_test_split(grammarStrings, prop_tests, alphabetLength)
+    train_x, train_y, test_x, test_y = train_test_split(grammar_strings, prop_tests, alphabetLength)
 
     # batch up the training data
-    train_dat = ([(cat(train_X[i]..., dims=2),  cat(train_Y[i]..., dims=1)') for i in Iterators.partition(1:length(train_X), batch_size)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
+    train_dat = ([(cat(train_x[i]..., dims=2),  cat(train_y[i]..., dims=1)') for i in Iterators.partition(1:length(train_x), batch_size)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
 
     # make train/test columns for pretraining
-    Train =  ["Train"]
-    Test = ["Test"]
-    grammarStrings.TrainOrTest = vcat(repeat(Train, length(train_X)), repeat(Test, length(strings[length(train_X)+1:end])))
+    Train_str =  ["Train"]
+    Test_str = ["Test"]
+    grammar_strings.TrainOrTest = vcat(repeat(Train_str, length(train_x)), repeat(Test_str, length(test_x)))
 
     if recurrence
         Flux.reset!(model)
     end
 
     # test the model out on the strings we have, before we train the model
-    probs_trainX = model(cat(train_X..., dims=2))
-    # modout_trainX = model(cat(train_X..., dims=2)) .>= 0.5
+    probs_trainX = model(cat(train_x..., dims=2))
+    # modout_trainX = model(cat(train_x..., dims=2)) .>= 0.5
     # categories_trainX = cumprod(modout_trainX, dims=1)
     # preds_trainX = sum(categories_trainX, dims=1)
-    # acc_trainX = sum(categories_trainX, dims=1) .== [Bool(x[1]) for x in train_Y]
+    # acc_trainX = sum(categories_trainX, dims=1) .== [Bool(x[1]) for x in train_y]
 
     if recurrence
         Flux.reset!(model)
     end
 
-    probs_testX = model(cat(test_X..., dims=2))
+    probs_testX = model(cat(test_x..., dims=2))
 
-    grammarStrings.initialProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
-
-    if recurrence
-        Flux.reset!(model)
-    end
-
-    model, acc_and_losses = training_loop(model, opt, train_dat, train_X, train_Y, test_X, test_Y, n_epochs)
+    grammar_strings.initialProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
     if recurrence
         Flux.reset!(model)
     end
 
-    testmode!(model) #if there are dropout layers
+    model, acc_and_losses = training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, modelID, grammar_strings.grammarID[1], recurrence, throttle, verbose)
+
+    if recurrence
+        Flux.reset!(model)
+    end
+
+    #testmode!(model) #if there are dropout layers
     # test the model out on the strings we have, after we train the model
-    probs_trainX = model(cat(train_X..., dims=2))
+    probs_trainX = model(cat(train_x..., dims=2))
     
     if recurrence
         Flux.reset!(model)
     end
 
-    probs_testX = model(cat(test_X..., dims=2))
+    probs_testX = model(cat(test_x..., dims=2))
 
-    grammarStrings.trainedProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
+    grammar_strings.trainedProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
     if recurrence
         Flux.reset!(model)
@@ -494,9 +542,9 @@ function trainModelOnGrammar(grammarStrings, model, alphabetLength, n_epochs, mo
 
     # make column of modelIDs
 
-    grammarStrings.modelID = vcat(repeat([modelID], length(strings)))
+    grammar_strings.modelID = vcat(repeat([modelID], nrow(grammar_strings)))
 
-    return grammarStrings, acc_and_losses
+    return grammar_strings, acc_and_losses
 end
 
 #==================================================================================#
