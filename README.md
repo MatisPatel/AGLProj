@@ -30,6 +30,6 @@ GRANT ALL ON *.* TO 'username'@'host' WITH GRANT OPTION;
 8. Verify the privileges of the user by running: `SHOW GRANTS FOR 'username'@'host';`
 9. Exit root with `exit` and then log into your new user with `mysql -u username -p` in the terminal.
 
-
+Run `CREATE DATABASE databasename;` in root (or in your user if it has the right privileges) and store the databasename in `database_connection.csv`.
 
 It is also handy to have MySQL Workbench for easy data inspection.
