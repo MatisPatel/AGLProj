@@ -16,7 +16,7 @@
 
 using DrWatson
 @quickactivate "AGLProj"
-using StatsBase, LinearAlgebra, DataFrames, CSV, Random, MySQL, Flux
+using CSV, MySQL
 
 include(srcdir("utils.jl"))
 
