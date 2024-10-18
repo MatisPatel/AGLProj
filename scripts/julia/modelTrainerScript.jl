@@ -101,9 +101,6 @@ else
         DBInterface.execute(con, "CREATE TABLE modeloutputs (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainprobs FLOAT, posttrainprobs FLOAT(32), epochs INT, UNIQUE (stringID, modelID));")
     catch
         println("The `modeloutputs` table already exists. Delete the table or skip these lines and add more data to the database.")
-    finally
-        global trainedModelsInDB = DBInterface.execute(con, "SELECT modeloutputs.modelID, strings.grammarID FROM modeloutputs JOIN strings ON modeloutputs.stringID = strings.stringID;") |> DataFrame
-        unique!(trainedModelsInDB)
     end
 end
 
