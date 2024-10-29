@@ -214,13 +214,34 @@ function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, err
 end
 
 #==================================================================================#
-# 3. Define models 
+# 3. Define models
+
+# Ref: https://jldc.ch/post/seq2one-flux/
+struct rnnClassifier
+    recurrent
+    dense 
+end
+Flux.@functor rnnClassifier # Differentiable
+
+function (model::rnnClassifier)(input)
+    [model.recurrent(i) for i in input[1:end-1]]
+    model.dense(model.recurrent(input[end]))
+end
 
 # Create models function
-function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet)
+function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet, reservoir, reservoir_scaling)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
-    @assert (numLaminations >= 1) "Number of laminations must be greater than 1 (single lamination is just a densely connected network)."
+    @assert (numLaminations >= 1) "Number of laminations must be greater than or equal to 1 (single lamination is just a densely connected network)."
     
+    if reservoir
+        numLayers = numLayers - 1
+    end
+
+    if numLayers < 1
+        @warn "You need at least one layer. If you have a reservoir, you need at least two layers. Returning false."
+        return false
+    end
+
     if numLayers == 1 && numLaminations > 1
         @warn "Number of laminations is greater than 1 but number of hidden layers is 1. This is just a single layer fully connected net. Returning false to avoid duplication."
         return false 
@@ -241,6 +262,11 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
         return false
     end
 
+    if numLayers == 1 && recurrence
+        @warn "Single layer recurrent network is not possible. Returning false to avoid duplication."
+        return false
+    end
+
     lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
                     floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
     for lam_neurons in lam_splits
@@ -255,31 +281,46 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
         push!(layer_splits, splits)
     end
     branches = [] 
+
+    if reservoir
+        if recurrence
+            input_dims = lengthAlphabet * reservoir_scaling
+        else
+            input_dims = lengthStrings*lengthAlphabet * reservoir_scaling
+        end
+    else
+        if recurrence
+            input_dims = lengthAlphabet
+        else
+            input_dims = lengthStrings*lengthAlphabet
+        end
+    end
+
     for splits in layer_splits
         if (length(splits) == 1)
             branch = Chain(
-                Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                Dense(input_dims, splits[1], relu),
             )
         else
             if (!inputPool && !outputPool)
                 if recurrence
                     branch = Chain(
-                        RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...,
-                        RNN(splits[end-1], splits[end], tanh)
+                        RNN(input_dims, splits[1], relu),
+                        [RNN(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...,
+                        RNN(splits[end-1], splits[end], relu)
                     )
                 else
                     branch = Chain(
-                        Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                        Dense(input_dims, splits[1], relu),
                         [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...,
                         Dense(splits[end-1], splits[end], relu)
                     )
                 end
             elseif (inputPool && !outputPool)
                 if recurrence
-                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 2:(length(splits) - 2)]...,
-                        RNN(splits[end-1], splits[end], tanh)
+                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], relu),
+                        [RNN(splits[i], splits[i+1], relu) for i in 2:(length(splits) - 2)]...,
+                        RNN(splits[end-1], splits[end], relu)
                         )
                 else
                     branch = Chain(Dense(sum([splits[1] for splits in layer_splits]), splits[2], relu),
@@ -290,22 +331,22 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
             elseif (!inputPool && outputPool)
                 if recurrence
                     branch = Chain(
-                        RNN(lengthStrings*lengthAlphabet, splits[1], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 1:(length(splits) - 2)]...,
-                        RNN(splits[end-2], splits[end-1], tanh)
+                        RNN(input_dims, splits[1], relu),
+                        [RNN(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 2)]...,
+                        RNN(splits[end-2], splits[end-1], relu)
                     )
                 else
                     branch = Chain(
-                        Dense(lengthStrings*lengthAlphabet, splits[1], relu),
+                        Dense(input_dims, splits[1], relu),
                         [Dense(splits[i], splits[i+1], relu) for i in 1:(length(splits) - 3)]...,
                         Dense(splits[end-2], splits[(length(splits) - 1)], relu)
                     )
                 end
             elseif (inputPool && outputPool)
                 if recurrence
-                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], tanh),
-                        [RNN(splits[i], splits[i+1], tanh) for i in 2:(length(splits)-3)]...,
-                        RNN(splits[end-2], splits[end-1], tanh)
+                    branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], relu),
+                        [RNN(splits[i], splits[i+1], relu) for i in 2:(length(splits)-3)]...,
+                        RNN(splits[end-2], splits[end-1], relu)
                     )
                 else
                     branch = Chain(Dense(sum([splits[1] for splits in layer_splits]), splits[2], relu),
@@ -321,53 +362,127 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
     end
 
     if (!inputPool && !outputPool)
-        model = Chain(
-            Parallel(vcat, branches...),
-            Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
-            )
-    elseif (inputPool && !outputPool)
-        if recurrence
-            model = Chain(
-                RNN(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), tanh),
-                Parallel(vcat, branches...),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+        if reservoir
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, input_dims, relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
                 )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         else
-            model = Chain(
-                Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
-                Parallel(vcat, branches...),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+            if recurrence
+                model = rnnClassifier(
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
                 )
+            else
+                model = Chain(
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
+        end
+    elseif (inputPool && !outputPool)
+        if reservoir
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, input_dims, relu), RNN(input_dims, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(input_dims, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
+        else
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         end
     elseif (!inputPool && outputPool)
-        if recurrence
-            model = Chain(
-                Parallel(vcat, branches...),
-                RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), tanh),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
-                )
+        if reservoir
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, input_dims, relu), Parallel(vcat, branches...), RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         else
-            model = Chain(
-                Parallel(vcat, branches...),
-                Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
-                )
+            if recurrence
+                model = rnnClassifier(
+                    Chain(Parallel(vcat, branches...), RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            else
+                model = Chain(
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         end
     else
-        if recurrence
-            model = Chain(
-                RNN(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), tanh),
-                Parallel(vcat, branches...),
-                RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), tanh),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+        if reservoir
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, input_dims, relu),
+                    RNN(input_dims, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)
+                    ),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
                 )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(input_dims, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         else
-            model = Chain(
-                Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
-                Parallel(vcat, branches...),
-                Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+            if recurrence
+                model = rnnClassifier(
+                    Chain(RNN(lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)
+                    ),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
                 )
+            else
+                model = Chain(
+                    Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Parallel(vcat, branches...),
+                    Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
+                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    )
+            end
         end
     end
     return model
@@ -376,61 +491,110 @@ end
 #==================================================================================#
 # 4. Model training functions
 
+# Train-test splitter
+function train_test_split(grammar_strings, prop, alphabetLength)
+    indx  = Int(floor(length(grammar_strings.string)*(1-prop)))
+
+    alphabet = collect('a':'z')[1:Int(alphabetLength)]
+
+    split_strings = [collect(s) for s in grammar_strings.string]
+
+    encodings = map(x -> Flux.onehot.(x, String(alphabet)), split_strings)
+    labels = grammar_strings.error
+
+    # splitting the data ito train/test and strings and truth. 
+    train_x = encodings[1:indx]
+    train_y = labels[1:indx]
+    test_x = encodings[indx+1:end]
+    test_y = labels[indx+1:end]
+
+    return train_x, train_y, test_x, test_y
+end
+
 # Early stopping function when loss stops changing
 function stop_early(prev_loss, current_loss, min_diff)
-    diff = prev_loss - current_loss
-    if diff < min_diff && diff >= 0
+    diff = abs(prev_loss - current_loss)
+    if diff < min_diff
         return true
     else
         return false
     end
 end
 
-# Define Brier Score function
-function brier_score(model, train_x, train_y, recurrence)
-    if recurrence
-        Flux.reset!(model)
-    end
-    preds = model(cat(train_x..., dims=2))
-    outs = [Bool(x[1]) for x in train_y]
+# Define Brier Score functionction brier_score(preds, outs)
+function brier_score(preds, outs)
     BS = 1/length(outs) * sum(sum(square.(preds - outs), dims=1), dims=2)
     return BS[1,1]
 end
 
-# Training loop function that stores accuracies and brier scores
-function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, modelID, grammarID, recurrence, throttle = 0.000001, verbose = true)
+function agl_predict(model, tx, ty, recurrence, stringLength)
+    if recurrence
+        Flux.reset!(model)
+        tx = [hcat([x[i] for x in tx]...) for i in 1:stringLength]
+    else
+        tx = hcat([vcat(x...) for x in tx]...)
+    end
+    
+    preds = model(tx)
+    outs = ty
+    return preds, outs
+end
+
+function training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, batch_size, 
+    modelID, grammarID, recurrence, reservoir, throttle = 0.000001, verbose = true)
+
     acc_losses = DataFrame(modelID = Int32[],
-                           grammarID = Int32[], 
-                           epoch = Int32[],
-                           batch = Int32[],
-                           loss = Float32[],
-                           train_brier = Float32[],
-                           test_brier = Float32[],
-                           throttle = Float32[])
-         
+                            grammarID = Int32[], 
+                            epoch = Int32[],
+                            batch = Int32[],
+                            loss = Float32[],
+                            train_brier = Float32[],
+                            test_brier = Float32[],
+                            throttle = Float32[])
+    
     opt_state = Flux.setup(opt, model)
+    if reservoir && recurrence
+        Flux.freeze!(opt_state.recurrent.layers[1])
+    elseif reservoir && !recurrence
+        Flux.freeze!(opt_state.layers[1])
+    end
+    
     prev_loss = 100 #set it high so training runs for at least one epoch
     batch = 1
-    for epoch in 1:n_epochs
-        break_train = false
-        for (x, y) in train_dat
+    train_y = hcat(train_y...)
+    test_y = hcat(test_y...)
+    if recurrence
+        x_train = train_x 
+        x_test = test_x
+    else
+        x_train = hcat([vcat(x...) for x ∈ train_x]...)
+        x_test = hcat([vcat(x...) for x ∈ test_x]...)
+    end
 
+    break_train = false
+    for epoch in 1:n_epochs
+        for idx in Iterators.partition(shuffle(1:size(x_train, 1)), batch_size)
             if recurrence
                 Flux.reset!(model)
-            end 
-
+                x, y = x_train[idx], train_y[:, idx]
+                x = [hcat([χ[i] for χ in x]...) for i in 1:stringLength] # Reshape X for RNN format
+            else
+                x, y = x_train[:, idx], train_y[:, idx]
+            end
             curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
-            Flux.update!(opt_state, model, gs[1])
+            opt_state, model = Flux.update!(opt_state, model, gs[1]) 
+
+            train_preds, train_outs = agl_predict(model, train_x, train_y, recurrence, stringLength)
+            test_preds, test_outs = agl_predict(model, test_x, test_y, recurrence, stringLength)
 
             dataframe = DataFrame(modelID = modelID,
-                                  grammarID = grammarID,
-                                  epoch = epoch,
-                                  batch = batch,
-                                  loss = curr_loss,
-                                  train_brier = brier_score(model, train_x, train_y, recurrence),
-                                  test_brier = brier_score(model, test_x, test_y, recurrence),
-                                  throttle = throttle)
-
+                                    grammarID = grammarID,
+                                    epoch = epoch,
+                                    batch = batch,
+                                    loss = curr_loss,
+                                    train_brier = brier_score(train_preds, train_outs),
+                                    test_brier = brier_score(test_preds, test_outs),
+                                    throttle = throttle)
             append!(acc_losses, dataframe)
 
             if stop_early(prev_loss, curr_loss, throttle)
@@ -455,94 +619,40 @@ function training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, 
     return model, acc_losses
 end
 
-# Train-test split function
-function train_test_split(grammar_strings, prop, alphabetLength)
-    indx  = Int(floor(length(grammar_strings.string)*(1-prop)))
-
-    alphabet = collect('a':'z')[1:Int(alphabetLength)]
-
-    strings = [Float32.(vec(Flux.onehotbatch(S, alphabet, alphabet[1]))) for S in grammar_strings.string]
-
-    # splitting the data ito train/test and strings and truth. 
-    train_x = strings[1:indx]
-    train_y = grammar_strings.encodedErrors[1:indx]' 
-    test_x = strings[indx+1:end]
-    test_y = grammar_strings.encodedErrors[indx+1:end]'
-
-    return train_x, train_y, test_x, test_y
-end
-
 # L2 Regularizer helper function
 pen_l2(x::AbstractArray) = sum(abs2, x)/2
 
 # train model function
-function trainModelOnGrammar(grammar_strings, model, alphabetLength, n_epochs, modelID, recurrence, throttle = 0.000001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95), verbose = true)
-    
-    # determine size of output layer of network. 
-    output_len = maximum(grammar_strings.error)::Int32
-
-    # new col in grammar_strings, where errors are encoded as ordinal values [0,0] [1, 0] [1, 1]
-    grammar_strings.encodedErrors = [vcat(ones( E), zeros( output_len-E)) for E in grammar_strings.error]
+function trainModelOnGrammar(grammar_strings, model, alphabetLength, n_epochs, modelID, recurrence, reservoir, 
+                             throttle = 0.000001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95), verbose = true)
 
     # get train test split
     train_x, train_y, test_x, test_y = train_test_split(grammar_strings, prop_tests, alphabetLength)
-
-    # batch up the training data
-    train_dat = ([(cat(train_x[i]..., dims=2),  cat(train_y[i]..., dims=1)') for i in Iterators.partition(1:length(train_x), batch_size)]) #::Vector{Tuple{Matrix{Float64}, LinearAlgebra.Adjoint{Float64, Matrix{Float64}}}}
 
     # make train/test columns for pretraining
     Train_str =  ["Train"]
     Test_str = ["Test"]
     grammar_strings.TrainOrTest = vcat(repeat(Train_str, length(train_x)), repeat(Test_str, length(test_x)))
 
-    if recurrence
-        Flux.reset!(model)
-    end
-
     # test the model out on the strings we have, before we train the model
-    probs_trainX = model(cat(train_x..., dims=2))
-    # modout_trainX = model(cat(train_x..., dims=2)) .>= 0.5
-    # categories_trainX = cumprod(modout_trainX, dims=1)
-    # preds_trainX = sum(categories_trainX, dims=1)
-    # acc_trainX = sum(categories_trainX, dims=1) .== [Bool(x[1]) for x in train_y]
-
-    if recurrence
-        Flux.reset!(model)
-    end
-
-    probs_testX = model(cat(test_x..., dims=2))
+    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, stringLength)
+    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, stringLength)
 
     grammar_strings.initialProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
-    if recurrence
-        Flux.reset!(model)
-    end
+    ## Need to massage the train_x data into sequences of one-hot encoded vectors for each character: https://jldc.ch/post/seq2one-flux/
+    model, acc_and_losses = training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, batch_size,
+                                          modelID, grammar_strings.grammarID[1], recurrence, reservoir, throttle, verbose)
 
-    model, acc_and_losses = training_loop(model, opt, train_dat, train_x, train_y, test_x, test_y, n_epochs, modelID, grammar_strings.grammarID[1], recurrence, throttle, verbose)
-
-    if recurrence
-        Flux.reset!(model)
-    end
-
-    #testmode!(model) #if there are dropout layers
-    # test the model out on the strings we have, after we train the model
-    probs_trainX = model(cat(train_x..., dims=2))
-    
-    if recurrence
-        Flux.reset!(model)
-    end
-
-    probs_testX = model(cat(test_x..., dims=2))
+    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, stringLength)
+    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, stringLength)
 
     grammar_strings.trainedProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
-    if recurrence
-        Flux.reset!(model)
-    end
-
     # make column of modelIDs
-
     grammar_strings.modelID = vcat(repeat([modelID], nrow(grammar_strings)))
+
+    grammar_strings.epochs = vcat(repeat([maximum(acc_and_losses.epoch)], nrow(grammar_strings)))
 
     return grammar_strings, acc_and_losses
 end

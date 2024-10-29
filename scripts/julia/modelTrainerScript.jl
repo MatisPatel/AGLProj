@@ -13,63 +13,67 @@
 #################################################################################################################################
 # 0. Preamble
 
-using DrWatson
-@quickactivate "AGLProj"
-using StatsBase, LinearAlgebra, DataFrames, CSV, Random, MySQL, Flux
+using Distributed
+nProcs = 10
+addprocs(nProcs-1)
 
-include(srcdir("utils.jl"))
+@everywhere begin
+    using DrWatson
+    quickactivate(".", "AGLProj")
+    using Combinatorics, DataFrames, Flux, LinearAlgebra, Logging, Random, StatsBase, CSV, MySQL
+    include(srcdir("utils.jl"))
+end
 
-# Set up database
-
+# Connect to database
 con = database_connect("database_connection.csv")
+
+# Load grammars
+grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFrame
+
+# Load models
+modelTable = DBInterface.execute(con, "SELECT * FROM modelatts;") |> DataFrame
 
 #######################
 ## SCRIPT PARAMETERS ##
 #######################
 
-# @everywhere begin
-    # alphabet 
-ALPHABET = 'a':'z'
-
 # alphabet length 
-# alphabetLength = DBInterface.execute(con, "SELECT alphabetLength FROM grammars LIMIT 1;") |> DataFrame 
-# alphabetLength = alphabetLength[1,1] #get the alphabet length
-alphabetLength = 6
+alphabetLength = DBInterface.execute(con, "SELECT alphabetLength FROM grammars LIMIT 1;") |> DataFrame 
+alphabetLength = alphabetLength[1,1] #get the alphabet length
 
-# Set seed for randomisers (for DB IDs and for initialising NNs)
-Random.seed!(2022) # may need to work out how to change this for all workers ! 
+# number of errors
+numErrors = DBInterface.execute(con, "select MAX(error) from strings;") |> DataFrame
+numErrors = numErrors[1,1]
 
-# model table
-modelTable = DBInterface.execute(con, "SELECT * FROM modelatts;") |> DataFrame
+# string length
+stringLength = DBInterface.execute(con, "SELECT stringLength FROM strings LIMIT 1;") |> DataFrame
+stringLength = stringLength[1,1]
 
-# # number of errors
-# numErrors = DBInterface.execute(con, "select MAX(error) from strings;") |> DataFrame
-# numErrors = numErrors[1,1]
-numErrors = 1
+@everywhere begin
+    Random.seed!(2022)
 
-# # string length
-# stringLength = DBInterface.execute(con, "SELECT stringLength FROM strings LIMIT 1;") |> DataFrame
-# stringLength = stringLength[1,1]
-stringLength = 2
+    # Load variables onto workers
+    alphabetLength = $alphabetLength
+    numErrors = $numErrors
+    stringLength = $stringLength
 
-# Number of epochs to run the training for
-n_epochs = 500
-throttle = 0.000001
-batch_size = 10
-prop_tests = 0.3
-opt = Momentum(0.01, 0.95)
-verbose = false
+    # Alphabet
+    ALPHABET = 'a':'z'
 
-# get grammar definitions from DB
-grammarsFromDB = DBInterface.execute(con, "SELECT * FROM grammars;") |> DataFrame
+    # Training parameters
+    n_epochs = 500
+    throttle = 0.000001
+    batch_size = 10
+    prop_tests = 0.3
+    opt = Momentum(0.01, 0.95)
 
-# end
+    # Print messages
+    verbose = false
+end
 
 #############################################################################################################
 
 ## Build models
-
-# @everywhere begin
 modelList = [] 
 for row in 1:nrow(modelTable)
     println("Model ID: ", modelTable.modelID[row], " loaded.")
@@ -82,7 +86,6 @@ for row in 1:nrow(modelTable)
                              numErrors, stringLength, alphabetLength)
     push!(modelList, (modelChain, modelTable.modelID[row], Bool(modelTable.recurrence[row])))
 end
-# end
 
 ### Train
 
@@ -92,15 +95,12 @@ rerunDB = false
 
 if rerunDB
     DBInterface.execute(con, "DROP TABLE IF EXISTS modeloutputs;")
-    DBInterface.execute(con, "CREATE TABLE modeloutputs (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainprobs INT, posttrainprobs INT, epochs INT, UNIQUE (stringID, modelID));")
+    DBInterface.execute(con, "CREATE TABLE modeloutputs (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainprobs FLOAT, posttrainprobs FLOAT(32), epochs INT, UNIQUE (stringID, modelID));")
 else
     try
-        DBInterface.execute(con, "CREATE TABLE modeloutputs (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainprobs INT, posttrainprobs INT, epochs INT, UNIQUE (stringID, modelID));")
+        DBInterface.execute(con, "CREATE TABLE modeloutputs (traininginstanceID INT AUTO_INCREMENT PRIMARY KEY, stringID INT NOT NULL, modelID INT NOT NULL, trainteststring VARCHAR(200), pretrainprobs FLOAT, posttrainprobs FLOAT(32), epochs INT, UNIQUE (stringID, modelID));")
     catch
         println("The `modeloutputs` table already exists. Delete the table or skip these lines and add more data to the database.")
-    finally
-        global trainedModelsInDB = DBInterface.execute(con, "SELECT modeloutputs.modelID, strings.grammarID FROM modeloutputs JOIN strings ON modeloutputs.stringID = strings.stringID;") |> DataFrame
-        unique!(trainedModelsInDB)
     end
 end
 
@@ -121,106 +121,87 @@ end
 
 
 for grammarNum in 1:50:nrow(grammarsFromDB)
-    grammarID = grammarsFromDB.grammarID[grammarNum]     
-    modelOutputs = DataFrame(grammarID = Int32[], 
-                            string = String[], 
-                            stringLength = Int32[], 
-                            stringNumber = String[], 
-                            error = Int32[], 
-                            stringID = Int32[], 
-                            encodedErrors = Vector{Vector{Float64}}, 
-                            TrainOrTest = String[], 
-                            initialProbs = Int64[], 
-                            trainedProbs = Int64[], 
-                            modelID = Int32[])
-    modelAccuracies = DataFrame(modelID = Int32[],
-                                grammarID = Int32[], 
-                                epoch = Int32[],
-                                batch = Int32[],
-                                loss = Float32[],
-                                train_brier = Float32[],
-                                test_brier = Float32[],
-                                throttle = Float32[]
-                                )
-    
-    for m in modelList 
-        model = m[1]
-        modelID = m[2]
-        recurrence = m[3]
+    grammarID = grammarsFromDB.grammarID[grammarNum]
 
-        if recurrence
-            Flux.reset!(model)
+    checkedModelList = []
+    count = 0
+    for m in modelList
+        count = count + 1
+        println(count)
+        modID = m[2]
+        if checkIfRun(con, grammarID, modID)
+            pass
+        else
+            append!(checkedModelList, [m])
         end
+    end
 
-        check = checkIfRun(con, grammarID, modelID)
-
+    if length(checkedModelList) > 0
         grammarQuery = string("SELECT * FROM strings WHERE grammarID = ", grammarID, " AND stringLength = ", stringLength, ";") #write the query to get the strings for the ith grammar with the appropriate string number
         trainingData = DBInterface.execute(con, grammarQuery) |> DataFrame # get the strings for the ith grammar
-
-        if !check
-            try
-                nextOutput, nextAccLoss = trainModelOnGrammar(trainingData, model, alphabetLength, n_epochs, modelID, recurrence, throttle, batch_size, prop_tests, opt, false)
-                append!(modelOutputs, nextOutput, promote=true)
-                append!(modelAccuracies, nextAccLoss, promote=true)
-            catch
-                println("Training failure with model: ")
-                println(model)
-                println("ModelID: ", modelID)
-            end
-        else
-            println("Model ID ", modelID, " has already been trained on Grammar ID ", grammarID, ". Moving on.")
-        end
-    end
         
-    if nrow(modelAccuracies) > 0
-        for row in 1:nrow(modelAccuracies)
-            query = string("INSERT INTO accuracieslosses (modelID, grammarID, epoch, batch, loss, trainbrier, testbrier, throttle) VALUES(",
-                            modelAccuracies.modelID[row], ", ", 
-                            modelAccuracies.grammarID[row], ", ",
-                            modelAccuracies.epoch[row], ", ",
-                            modelAccuracies.batch[row], ", ",
-                            modelAccuracies.loss[row], ", ",
-                            modelAccuracies.train_brier[row], ", ",
-                            modelAccuracies.test_brier[row], ", ",
-                            modelAccuracies.throttle[row],
-                            ");")
-            try
-                DBInterface.execute(con, query) # push to DB
-            catch
-                println("This row is hitting a uniqueness constraint, meaning you have already entered accuracies and losses for grammar ", modelAccuracies.grammar[row], " with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
-                continue
-            end
-                
-        end
-    outputOfTraining = nothing 
-    GC.gc()
-    else
-        println("All models have been trained on GrammarID ", grammarID, ". Moving to next grammar")
-    end
+        for models in collect(Iterators.partition(checkedModelList, nProcs*3)) # batch up the models 
+            results = @distributed (vcat) for m in models
+                model = m[1]
+                modelID = m[2]
+                recurrence = m[3]
+                Flux.reset!(model)
+                nextOutput, nextAccLoss = trainModelOnGrammar(trainingData, model, alphabetLength, n_epochs, modelID, 
+                                                            recurrence, throttle, batch_size, prop_tests, opt, false)
+                (nextOutput, nextAccLoss)
 
-    if nrow(modelOutputs) > 0
-        for row in 1:nrow(modelOutputs)
-            query = string("INSERT INTO modeloutputs (stringID, modelID, trainteststring, pretrainprobs, posttrainprobs, epochs) VALUES(",
-                            modelOutputs.stringID[row], ", ",
-                            modelOutputs.modelID[row], ", \"",
-                            modelOutputs.TrainOrTest[row], "\", ",
-                            modelOutputs.initialProbs[row], ", ",
-                            modelOutputs.trainedProbs[row], ", ",
-                            n_epochs, 
-                            ");")
-            try
-                DBInterface.execute(con, query) # push to DB
-            catch
-                println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", modelOutputs.stringID[row], ") with this model (", modelOutputs.modelID[row], "). Moving to the next.")
-                continue
             end
-                
-        end
-    outputOfTraining = nothing 
-    GC.gc()
-    else
-        println("All models have been trained on GrammarID ", grammarID, ". Moving to next grammar")
-    end
 
+            output_list = map(x -> x[1], results)
+            acc_loss_list = map(x -> x[2], results)
+            modelOutputs = vcat(output_list...)
+            unique!(modelOutputs)
+            modelAccuracies = vcat(acc_loss_list...)
+            
+            if nrow(modelAccuracies) > 0
+                for row in 1:nrow(modelAccuracies)
+                    query = string("INSERT INTO accuracieslosses (modelID, grammarID, epoch, batch, loss, trainbrier, testbrier, throttle) VALUES(",
+                                    modelAccuracies.modelID[row], ", ", 
+                                    modelAccuracies.grammarID[row], ", ",
+                                    modelAccuracies.epoch[row], ", ",
+                                    modelAccuracies.batch[row], ", ",
+                                    modelAccuracies.loss[row], ", ",
+                                    modelAccuracies.train_brier[row], ", ",
+                                    modelAccuracies.test_brier[row], ", ",
+                                    modelAccuracies.throttle[row],
+                                    ");")
+                    try
+                        DBInterface.execute(con, query) # push to DB
+                    catch
+                        println("This row is hitting a uniqueness constraint, meaning you have already entered accuracies and losses for grammar ", modelAccuracies.grammar[row], " with this model (", outputOfTraining.modelID[row], "). Moving to the next.")
+                        continue
+                    end
+                        
+                end
+            end
+
+            if nrow(modelOutputs) > 0
+                for row in 1:nrow(modelOutputs)
+                    query = string("INSERT INTO modeloutputs (stringID, modelID, trainteststring, pretrainprobs, posttrainprobs, epochs) VALUES(",
+                                    modelOutputs.stringID[row], ", ",
+                                    modelOutputs.modelID[row], ", \"",
+                                    modelOutputs.TrainOrTest[row], "\", ",
+                                    modelOutputs.initialProbs[row], ", ",
+                                    modelOutputs.trainedProbs[row], ", ",
+                                    modelOutputs.epochs[row], 
+                                    ");")
+                    try
+                        DBInterface.execute(con, query) # push to DB
+                    catch
+                        println("This row is hitting a uniqueness constraint, meaning you have already trained this string (", modelOutputs.stringID[row], ") with this model (", modelOutputs.modelID[row], "). Moving to the next.")
+                        continue
+                    end
+                        
+                end
+            end
+        end
+    else
+        println("All models have been evaluated on grammar", grammarID, ". Moving on...")
+    end
 end
 DBInterface.close!(con)
