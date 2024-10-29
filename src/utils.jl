@@ -118,6 +118,54 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
     return grammar, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian
 end
 
+""" 
+Function to make a grammar and draw it. 
+
+N is the alphabet size 
+K is the length of the kgrams (2 or 3 usually)
+edges are the num of edges max edges is (N^K)^2
+"""
+function drawRaisedGrammar(N, K, edges)
+    if edges > (N^K)^2
+        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    end
+    alph_size = N
+    mora_size = N^K
+    listEdges = shuffle(vcat(repeat([1], edges),
+                    repeat([0], mora_size^2-mora_size - edges))) 
+    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
+    grammar = reduce(hcat, grammar)
+    # Input vector of characters
+    chars = collect('A':'Z')[1:alph_size]
+    # Form a vector of all possible bigram strings
+    moras = generate_kgrams(chars, K)
+    return graphplot(grammar, names = moras, nodesize=0.15, method=:grid, nodealpha=0)
+end
+
+""" 
+Function to make a grammar returns the grammar and the list of ordered moras. 
+
+N is the alphabet size 
+K is the length of the kgrams (2 or 3 usually)
+edges are the num of edges max edges is (N^K)^2
+"""
+function makeRaisedGrammar(N, K, edges)
+    if edges > (N^K)^2
+        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    end
+    alph_size = N
+    mora_size = N^K
+    listEdges = shuffle(vcat(repeat([1], edges),
+                    repeat([0], mora_size^2-mora_size - edges))) 
+    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
+    grammar = reduce(hcat, grammar)
+    # Input vector of characters
+    chars = collect('A':'Z')[1:alph_size]
+    # Form a vector of all possible bigram strings
+    moras = generate_kgrams(chars, K)
+    return (grammar, moras)
+end
+
 # Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
 function eigenvalueEntropy(eigenvalues)
     # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
