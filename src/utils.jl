@@ -166,6 +166,45 @@ function makeRaisedGrammar(N, K, edges)
     return (grammar, moras)
 end
 
+
+"""
+Function to make a string with errros from a raised grammar. 
+"""
+function makeRaisedStringErrors(N, K, grammar, moras, string_length, errors)
+    morasLength = length(moras)
+    num_moras = div(string_length, K)
+    @assert grammar.size[1] == morasLength "size of grammar and number of kgrams do not match"
+    @assert string_length % K == 0 "Can't make strings not divisible by K"
+    @assert errors < num_moras-1 "Number of errors exceeds the possible transitions"
+
+    initial_mora = nothing 
+    while isnothing(initial_mora)
+        candidate_mora = rand(1:morasLength)
+        if sum(grammar[candidate_mora, :]) > 0
+            initial_mora = candidate_mora
+        end
+    end
+    # println(moras[candidate_mora])
+    string_idxs = Vector(undef, num_moras)
+    string_idxs[1] = initial_mora
+    where_errors = sample(2:num_moras, errors, replace=false)
+
+    for i in 2:num_moras
+        if i in where_errors
+            next = sample(1:morasLength, Weights(error_grammar[string_idxs[i-1], :]))
+            string_idxs[i] = next
+            # println("error ", i)
+        else 
+            next = sample(1:morasLength, Weights(grammar[string_idxs[i-1], :]))
+            string_idxs[i] = next
+        end
+    end
+
+    string = join(moras[string_idxs])
+
+    return string, string_idxs, where_errors
+end
+
 # Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
 function eigenvalueEntropy(eigenvalues)
     # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
