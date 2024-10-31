@@ -8,7 +8,7 @@ using Combinatorics, DataFrames, Flux, LinearAlgebra, Logging, Random, StatsBase
 square(n) = n * n
 
 # Database connection function
-function database_connect(csv_name) 
+function database_connect(csv_name, checking=false) 
     csv_location = projectdir("src", csv_name)
     if isfile(csv_location)
         database_connection = CSV.File(csv_location) |> DataFrame
@@ -25,7 +25,13 @@ function database_connect(csv_name)
                                   dbPassword, 
                                   db = dbName) 
 
-        return con
+        if checking
+            DBInterface.close!(con)
+            println("Database exists and can be connected to!")
+            return true
+        else
+            return con
+        end
     else
         error("Database connection csv not found. Please add it to the src folder.")
     end
