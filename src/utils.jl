@@ -1,5 +1,5 @@
-## Functions for pipeline
-using Combinatorics, DataFrames, Flux, LinearAlgebra, Logging, Random, StatsBase
+## Functions to export
+using Combinatorics, CSV, DataFrames, Flux, LinearAlgebra, Logging, MySQL, Random, StatsBase, YAML
 
 #==================================================================================#
 # 0. General helper functions
@@ -19,35 +19,271 @@ function database_connect(csv_name, checking=false)
         dbHostname = database_connection.Value[4]
 
         println("Opening DB Connection")
-        con = DBInterface.connect(MySQL.Connection, 
-                                  dbHostname,
-                                  dbUsername, 
-                                  dbPassword, 
-                                  db = dbName) 
-
-        if checking
-            DBInterface.close!(con)
-            println("Database exists and can be connected to!")
-            return true
-        else
-            return con
+        try
+            con = DBInterface.connect(MySQL.Connection, 
+                                    dbHostname,
+                                    dbUsername, 
+                                    dbPassword, 
+                                    db = dbName) 
+            if checking
+                DBInterface.close!(con)
+                println("Database exists and can be connected to!")
+                return true
+            else
+                return con
+            end
+        catch
+            println("Unable to connect to database. Please check credentials.")
+            return false
         end
     else
         error("Database connection csv not found. Please add it to the src folder.")
     end
 end
 
-# Check presence of a grammar and a modelID in database
-function checkIfRun(con, grammarID, modelID)
-    query = string("SELECT COUNT(*) FROM modeloutputs INNER JOIN strings ON modeloutputs.stringID = strings.stringID WHERE strings.grammarID = ",
-                   grammarID, " AND modeloutputs.modelID = ", modelID, ";")
-    
-    result = DBInterface.execute(con, query) |> DataFrame
+# Initialises the database based on a YAML file
+function initialise_db(yaml_settings_name)
+    settings = load_yaml(yaml_settings_name)
 
-    if result[1,1] > 0
-        return true
+    db_connection_path = settings["db_credentials_secret"]["path"]
+    con = database_connect(db_connection_path)
+    
+    println("Initialising database...")
+    for t in keys(settings["tables"])
+        table = settings["tables"][t]
+        build = _build_db_table(table, con)
+        if !build 
+            println("Could not build $(table["name"]).")
+        end
+    end
+
+    println("Closing DB Connection")
+    DBInterface.close!(con)
+
+    println("Running checks on database based on YAML settings...")
+    check = check_database(yaml_settings_name)
+    if check
+        println("The database configuration matches the current YAML file.")
     else
+        println("The database configuration does not match the current YAML file. Aborting...")
+    end
+    println("Closing DB Connection")
+    return nothing
+end
+
+# Builds a database table from contents of YAML file
+function _build_db_table(yaml_table_field_element, con)
+    function _concatenate_colnames_constraints(col_list, constraint)
+        out = join(["$(y[1]) $(y[2])" for y in col_list], ", ")
+        if !isnothing(constraint)
+            out = out * ", " * constraint
+        end
+        return out
+    end
+
+    name = yaml_table_field_element["name"]
+    rebuild = yaml_table_field_element["delete_and_rebuild"]
+
+    if "constraint" in keys(yaml_table_field_element)
+        constraint = yaml_table_field_element["constraint"]
+    else
+        constraint = nothing
+    end
+
+    if rebuild
+        dropquery = string("DROP TABLE IF EXISTS $(name)")
+        DBInterface.execute(con, dropquery)
+    end
+
+    createquery = "CREATE TABLE IF NOT EXISTS $(name) ($(_concatenate_colnames_constraints(yaml_table_field_element["columns"], constraint)));"
+
+    try
+        DBInterface.execute(con, createquery)
+        return true
+    catch
         return false
+    end
+end
+
+# Loads YAML file from file name and cleans it up
+function load_yaml(yaml_file_name)
+    function _interpret_yaml_code(yaml_dict)
+        function _evaluate_strings(col_entry)
+            if length(col_entry) == 3
+                x = col_entry[3]
+                m = match(r"%.*%", col_entry[2])
+                interp = replace(replace(m.match, "x" => string(x)), "%" => "")
+                out = eval(Meta.parse(interp))
+                col_entry[2] = replace(col_entry[2], r"%.*%" => string(out))
+            end
+            return col_entry
+        end
+    
+        for table in keys(yaml_dict["tables"])
+            for column in 1:length(yaml_dict["tables"][table]["columns"])
+                 replaced = _evaluate_strings(yaml_dict["tables"][table]["columns"][column])
+                 yaml_dict["tables"][table]["columns"][column] = replaced
+            end
+        end
+        return yaml_dict
+    end
+
+    yaml_location = projectdir("src", yaml_file_name)
+    if isfile(yaml_location)
+        settings = YAML.load_file(yaml_location)
+
+        settings = _interpret_yaml_code(settings)
+
+        major_fields = ["db_credentials_secret", "model_parameters",
+                  "grammar_parameters", "tables", "string_parameters"]
+        for f in major_fields
+            if !(f in keys(settings))
+                error("$(f) field is missing from YAML at $(yaml_location)! Please copy the template.")
+            end
+        end
+
+        grammar_fields = ["alphabet_length", "num_grammars", "num_attempts", "entropy_rounding_precision", "seed"]
+        for f in grammar_fields
+            if !(f in keys(settings["grammar_parameters"]))
+                error("$(f) field is missing from grammar_parameters in YAML at $(yaml_location)! Please copy the template.")
+            end
+        end
+
+        string_fields = ["string_length", "num_strings", "num_errors", "seed"]
+        for f in string_fields
+            if !(f in keys(settings["string_parameters"]))
+                error("$(f) field is missing from string_parameters in YAML at $(yaml_location)! Please copy the template.")
+            end
+        end
+
+        model_fields = ["min_num_neurons", "max_num_neurons", "neuron_increments", 
+                        "min_num_layers", "max_num_layers", "max_num_laminations", 
+                        "num_errors", "alphabet_length", "string_length", "seed"]
+        for f in model_fields
+            if !(f in keys(settings["model_parameters"]))
+                error("$(f) field is missing from model_parameters in YAML at $(yaml_location)! Please copy the template.")
+            end
+        end
+
+        if !("path" in keys(settings["db_credentials_secret"]))
+            error("path field is missing from db_credentials_secret in YAML at $(yaml_location)! Please copy the template.")
+        end
+
+        table_name_fields = ["strings", "modeloutputs", "grammars", "models", "accuracieslosses"]
+        for f in table_name_fields
+            if !(f in keys(settings["tables"]))
+                error("$(f) field is missing from tables in YAML at $(yaml_location)! Please copy the template.")
+            end
+        end
+
+        table_fields = ["name", "columns", "delete_and_rebuild"]
+        for t in keys(settings["tables"])
+            tb_keys = keys(settings["tables"][t])
+            for f in table_fields
+                if !(f in tb_keys)
+                    if f != "name"
+                        error("$(f) field is missing from table named $(t["name"]) in YAML at $(yaml_location)! Please copy the template.")
+                    else
+                        error("The $(f) is missing from one of the tables listed in YAML at $(yaml_location)! Please copy the template.")
+                    end
+                end
+            end
+        end
+
+        return settings
+
+    else
+        error("YAML file not found. Please add it to the src folder.")
+    end
+
+
+end
+
+# Checks that the database configuration matches the YAML file specification
+function check_database(yaml_settings_name)
+    settings = load_yaml(yaml_settings_name)
+    db_connection_path = settings["db_credentials_secret"]["path"]
+
+    _ = database_connect(db_connection_path, true) # db connection unit test
+
+    con = database_connect(db_connection_path, false)
+
+    tables = DBInterface.execute(con, "SHOW TABLES;") |> DataFrame
+
+    for t in keys(settings["tables"])
+        table = settings["tables"][t]
+        if !(table["name"] in tables[!, 1])
+            error("Table $(t["name"]) is not in the database.")
+        end
+
+        columns = DBInterface.execute(con, "SHOW COLUMNS FROM $(table["name"]);") |> DataFrame
+
+        for c in table["columns"]
+            if !(c[1] in columns.Field)
+                error("Column $(c[1]) is not in Table $(table["name"]).")
+            end
+        end
+    end
+
+    DBInterface.close!(con)
+
+    return true
+
+end
+
+function load_parameters(settings, type)
+    if type == "grammar_parameters"
+        global alphabet_length = settings["grammar_parameters"]["alphabet_length"]
+        global num_grammars = settings["grammar_parameters"]["num_grammars"]
+        global num_attempts = settings["grammar_parameters"]["num_attempts"]
+        global entropy_rounding_precision = settings["grammar_parameters"]["entropy_rounding_precision"]
+        global grammar_seed = settings["grammar_parameters"]["seed"]
+        global alphabet = 'a':'z'
+        grammar_connections = alphabet_length*2:alphabet_length^2-alphabet_length
+        println("Loading grammar parameters: alphabet_length ($(alphabet_length)), num_grammars ($(num_grammars)), num_attempts ($(num_attempts)),\
+        entropy_rounding_precision ($(entropy_rounding_precision)), grammar_seed ($(grammar_seed)), alphabet ($(alphabet)), grammar_connections ($(grammar_connections)).")
+    elseif type == "string_parameters"
+        global string_length = settings["string_parameters"]["string_length"]
+        global num_strings = settings["string_parameters"]["num_strings"]
+        global num_errors = settings["string_parameters"]["num_errors"]
+        global string_seed = settings["string_parameters"]["seed"]
+        global alphabet = 'a':'z'
+        println("Loading string parameters: string_length ($(string_length)), num_strings ($(num_strings)), num_errors ($(num_errors)),\
+        string_seed ($(string_seed)), alphabet ($(alphabet)).")
+    elseif type == "model_parameters"
+        global min_num_neurons = settings["model_parameters"]["min_num_neurons"]
+        global max_num_neurons = settings["model_parameters"]["max_num_neurons"]
+        global neuron_increments = settings["model_parameters"]["neuron_increments"]
+        global min_num_layers = settings["model_parameters"]["min_num_layers"]
+        global max_num_layers = settings["model_parameters"]["max_num_layers"]
+        global max_num_laminations = settings["model_parameters"]["max_num_laminations"]
+        global num_errors = settings["model_parameters"]["num_errors"]
+        global alphabet_length = settings["model_parameters"]["alphabet_length"]
+        global string_length = settings["model_parameters"]["string_length"]
+        global model_seed = settings["model_parameters"]["seed"]
+        global reservoir_scaling_factor = settings["model_parameters"]["reservoir_scaling_factor"]
+        println("Loading string parameters: min_num_neurons ($(min_num_neurons)), max_num_neurons ($(max_num_neurons)), neuron_increments ($(neuron_increments)),\
+        min_num_layers ($(min_num_layers)), max_num_layers ($(max_num_layers)), max_num_laminations ($(max_num_laminations)), num_errors ($(num_errors)),\
+        alphabet_length ($(alphabet_length)), string_length ($(string_length)), model_seed ($(model_seed)), reservoir_scaling_factor ($(reservoir_scaling_factor)).")
+    else 
+        error("Parameters can only be loaded for one of: grammar_parameters, string_parameters, or model_parameters")
+    end
+
+    return nothing
+end
+
+
+function build_insert_query(tab_name, col_names, values)
+    if length(col_names) == length(values)
+        query = """INSERT INTO $(tab_name) (\
+                    $(join(col_names, ", "))\
+                    ) VALUES (\
+                    $(join(values, ", "))\
+                    )\
+                """
+        return query
+    else
+        error("Number of columns and number of values do not match.")
     end
 end
 
@@ -55,7 +291,7 @@ end
 # 1. Grammar functions
 
 # Checking Connectedness of grammar - check whether the grammar is connected.
-function checkConnected(grammar)
+function check_connected(grammar)
     N = size(grammar)[1]
     gramN = grammar^N
     counts = sum(gramN .> 0, dims=2)
@@ -63,15 +299,15 @@ function checkConnected(grammar)
 end
 
 # Check full transitions of grammar - check whether every state can be transitioned out of, no 0s on any rows
-function checkTransitionsFull(grammar)
+function check_full_transitions(grammar)
     # println("check trans")
-    rowSums = sum(grammar, dims=2)
-    fullTrans = prod(rowSums .!= 0)
-    return fullTrans
+    row_sums = sum(grammar, dims=2)
+    full_trans = prod(row_sums .!= 0)
+    return full_trans
 end
 
 # Generate fully connected, fully transitioned grammars with and without loops (loops = same state can be visited multiple times sequentially)
-function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
+function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
     done = false
     grammar = nothing
 
@@ -80,8 +316,8 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
         while !done
             grammar = reshape(shuffle(vcat(repeat([1], edges),
                     repeat([0], N^2 - edges))), N, N)
-            if checkTransitionsFull(grammar)
-                if checkConnected(grammar)
+            if check_full_transitions(grammar)
+                if check_connected(grammar)
                     if sum(Diagonal(grammar)) >= 1 # added constraint so that it must have loops
                         done = true
                     end
@@ -100,32 +336,35 @@ function genConnectedGrammar(N::Int, edges::Int, loops::Bool)
         end
         # [[j==i ? 0 : 1 for j in 1:N] for i in 1:N]
         while !done
-            listEdges = shuffle(vcat(repeat([1], edges),
+            list_edges = shuffle(vcat(repeat([1], edges),
                     repeat([0], N^2-N - edges))) 
-            grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:N] for i in 1:N])
+            grammar = vcat([[j==i ? 0 : pop!(list_edges) for j in 1:N] for i in 1:N])
             grammar = reduce(hcat, grammar)
             #println(sum(Diagonal(grammar)))
             if sum(Diagonal(grammar)) == 0
-                if checkTransitionsFull(grammar)
-                    if checkConnected(grammar) # added constraint so that it must not have loops
+                if check_full_transitions(grammar)
+                    if check_connected(grammar) # added constraint so that it must not have loops
                         done = true
                     end
                 end
             end
         end
-
     end
-
-    outDegreeMatrix = diagm(vec(sum(grammar, dims=1))) #diagonal matrix with the 
-    inDegreeMatrix = diagm(vec(sum(grammar, dims=2)))
-    outDegreeLaplacian = outDegreeMatrix .- grammar
-    inDegreeLaplacian = inDegreeMatrix .- grammar
-    signlessInDegreeLaplacian = inDegreeMatrix .+ grammar # For Sun et al. (2021) entropy calcs
-    return grammar, outDegreeMatrix, inDegreeMatrix, outDegreeLaplacian, inDegreeLaplacian, signlessInDegreeLaplacian
+    out_degree_matrix = diagm(vec(sum(grammar, dims=1)))
+    in_degree_matrix = diagm(vec(sum(grammar, dims=2)))
+    output_dict = Dict(
+        "grammar"=>grammar,
+        "out_degree_matrix"=>out_degree_matrix,
+        "in_degree_matrix"=>in_degree_matrix,
+        "out_degree_laplacian"=>(out_degree_matrix .- grammar),
+        "in_degree_laplacian"=>(in_degree_matrix .- grammar),
+        "signless_in_degree_laplacian"=>(in_degree_matrix .+ grammar) # For Sun et al. (2021) entropy calcs
+    )
+    return output_dict
 end
 
 # Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
-function eigenvalueEntropy(eigenvalues)
+function compute_eigenvalue_entropy(eigenvalues)
     # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
 
     absolute_values = abs.(eigenvalues)
@@ -139,32 +378,47 @@ function eigenvalueEntropy(eigenvalues)
 end
 
 # Grammar Entropy function - get the various entropies of the grammar
-function grammarEntropy(adjacencyMatrix, inDegreeLaplacian = nothing, signlessInDegreeLaplacian = nothing)
+function compute_grammar_entropy(adjacency_matrix, in_degree_laplacian=nothing, signless_in_degree_laplacian=nothing, rounding_precision=3)
     
-    if inDegreeLaplacian === nothing && inDegreeSignlessLaplacian === nothing
-        topEntropy = abs(eigvals(adjacencyMatrix)[end])
-        return topEntropy
+    if isnothing(in_degree_laplacian) && isnothing(signless_in_degree_laplacian)
+        top_entropy = abs(eigvals(adjacency_matrix)[end])
+        return top_entropy
+
+    elseif isnothing(in_degree_laplacian) ⊻ isnothing(signless_in_degree_laplacian)
+        error("Supply both an indegree laplacian and a signless in degree laplacian to compute entropy.") 
+
     else 
-        
-        topEntropy = abs(eigvals(adjacencyMatrix)[end])
+        top_entropy = abs(eigvals(adjacency_matrix)[end])
 
-        adjMatrixEigenvalues = eigvals(adjacencyMatrix)
-        adjMatrixRealEntropy = eigenvalueEntropy(real.(adjMatrixEigenvalues))
-        adjMatrixImaginaryEntropy = eigenvalueEntropy(imag.(adjMatrixEigenvalues))
-        adjMatrixModulusEntropy = eigenvalueEntropy(abs.(adjMatrixEigenvalues))
+        adjacency_matrix_eigenvalues = eigvals(adjacency_matrix)
+        adjacency_matrix_real_entropy = compute_eigenvalue_entropy(real.(adjacency_matrix_eigenvalues))
+        adjacency_matrix_imaginary_entropy = compute_eigenvalue_entropy(imag.(adjacency_matrix_eigenvalues))
+        adjacency_matrix_modulus_entropy = compute_eigenvalue_entropy(abs.(adjacency_matrix_eigenvalues))
 
-        inDegreeLaplacianEigenvalues = eigvals(inDegreeLaplacian)
-        inDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(inDegreeLaplacianEigenvalues))
-        inDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(inDegreeLaplacianEigenvalues))
-        inDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(inDegreeLaplacianEigenvalues))
+        in_degree_laplacian_eigenvalues = eigvals(in_degree_laplacian)
+        in_degree_laplacian_real_entropy = compute_eigenvalue_entropy(real.(in_degree_laplacian_eigenvalues))
+        in_degree_laplacian_imaginary_entropy = compute_eigenvalue_entropy(imag.(in_degree_laplacian_eigenvalues))
+        in_degree_laplacian_modulus_entropy = compute_eigenvalue_entropy(abs.(in_degree_laplacian_eigenvalues))
 
-        signlessInDegreeLaplacianEigenvalues = eigvals(signlessInDegreeLaplacian)
-        signlessInDegreeLaplacianRealEntropy = eigenvalueEntropy(real.(signlessInDegreeLaplacianEigenvalues))
-        signlessInDegreeLaplacianImaginaryEntropy = eigenvalueEntropy(imag.(signlessInDegreeLaplacianEigenvalues))
-        signlessInDegreeLaplacianModulusEntropy = eigenvalueEntropy(abs.(signlessInDegreeLaplacianEigenvalues))
+        signless_in_degree_laplacian_eigenvalues = eigvals(signless_in_degree_laplacian)
+        signless_in_degree_laplacian_real_entropy = compute_eigenvalue_entropy(real.(signless_in_degree_laplacian_eigenvalues))
+        signless_in_degree_laplacian_imaginary_entropy = compute_eigenvalue_entropy(imag.(signless_in_degree_laplacian_eigenvalues))
+        signless_in_degree_laplacian_modulus_entropy = compute_eigenvalue_entropy(abs.(signless_in_degree_laplacian_eigenvalues))
 
-        return topEntropy, adjMatrixRealEntropy, adjMatrixImaginaryEntropy, adjMatrixModulusEntropy, inDegreeLaplacianRealEntropy, inDegreeLaplacianImaginaryEntropy, inDegreeLaplacianModulusEntropy, signlessInDegreeLaplacianRealEntropy, signlessInDegreeLaplacianImaginaryEntropy, signlessInDegreeLaplacianModulusEntropy
+        output_list = [
+            round(top_entropy, digits=rounding_precision),
+            round(adjacency_matrix_real_entropy, digits=rounding_precision),
+            round(adjacency_matrix_imaginary_entropy, digits=rounding_precision),
+            round(adjacency_matrix_modulus_entropy, digits=rounding_precision),
+            round(in_degree_laplacian_real_entropy, digits=rounding_precision),
+            round(in_degree_laplacian_imaginary_entropy, digits=rounding_precision),
+            round(in_degree_laplacian_modulus_entropy, digits=rounding_precision),
+            round(signless_in_degree_laplacian_real_entropy, digits=rounding_precision),
+            round(signless_in_degree_laplacian_imaginary_entropy, digits=rounding_precision),
+            round(signless_in_degree_laplacian_modulus_entropy, digits=rounding_precision)
+        ]
 
+        return output_list
     end
 end
 
@@ -172,10 +426,10 @@ end
 # 2. Generate strings
 
 # String maker function
-function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
+function make_string(alphabet, grammar, err_grammar, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
     str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
-    alphSize = length(alphabet) # get length of alphabet
-    str_idxs[1] = rand(1:alphSize) # assign first index to be a random letter in alphabet
+    alph_size = length(alphabet) # get length of alphabet
+    str_idxs[1] = rand(1:alph_size) # assign first index to be a random letter in alphabet
     where_errors = nothing
     if (errors < str_len-1)
         where_errors = sample(2:str_len, errors, replace=false)
@@ -184,10 +438,10 @@ function makeString(alphabet, grammar, err_grammar, str_len, errors) # takes an 
     end
     for n in 2:str_len 
         if n in where_errors
-            next = sample(1:alphSize, Weights(err_grammar[str_idxs[n-1], :]))
+            next = sample(1:alph_size, Weights(err_grammar[str_idxs[n-1], :]))
             str_idxs[n] = next
         else 
-            next = sample(1:alphSize, Weights(grammar[str_idxs[n-1], :]))
+            next = sample(1:alph_size, Weights(grammar[str_idxs[n-1], :]))
             str_idxs[n] = next
         end
     end 
@@ -234,71 +488,85 @@ function (model::rnnClassifier)(input)
     model.dense(model.recurrent(input[end]))
 end
 
-# Create models function
-function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPool, outputPool, numClasses, lengthStrings, lengthAlphabet, reservoir, reservoir_scaling)
+# Build models function
+function build_model(num_neurons, num_layers, num_laminations, recurrence, input_pool, output_pool, num_classes, length_strings, length_alphabet, reservoir, reservoir_scaling, verbose=false)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
-    @assert (numLaminations >= 1) "Number of laminations must be greater than or equal to 1 (single lamination is just a densely connected network)."
+    @assert (num_laminations >= 1) "Number of laminations must be greater than or equal to 1 (single lamination is just a densely connected network)."
     
     if reservoir
-        numLayers = numLayers - 1
+        num_layers = num_layers - 1
     end
 
-    if numLayers < 1
-        @warn "You need at least one layer. If you have a reservoir, you need at least two layers. Returning false."
+    if num_layers < 1
+        if verbose
+            @warn "You need at least one layer. If you have a reservoir, you need at least two layers. Returning false."
+        end
         return false
     end
 
-    if numLayers == 1 && numLaminations > 1
-        @warn "Number of laminations is greater than 1 but number of hidden layers is 1. This is just a single layer fully connected net. Returning false to avoid duplication."
+    if num_layers == 1 && num_laminations > 1
+        if verbose
+            @warn "Number of laminations is greater than 1 but number of hidden layers is 1. This is just a single layer fully connected net. Returning false to avoid duplication."
+        end
         return false 
     end
 
-    if numLaminations > 1 && inputPool && outputPool && numLayers < 4
-        @warn "Number of laminations is greater than 1 with a pooling layer at both ends, but the number of hidden layers is less than 4. This is just a 1-3 layer fully connected net. Returning false to avoid duplication."
+    if num_laminations > 1 && input_pool && output_pool && num_layers < 4
+        if verbose
+            @warn "Number of laminations is greater than 1 with a pooling layer at both ends, but the number of hidden layers is less than 4. This is just a 1-3 layer fully connected net. Returning false to avoid duplication."
+        end
         return false
     end
 
-    if numLaminations > 1 && (inputPool ⊻ outputPool) && numLayers < 3
-        @warn "Number of laminations is greater than 1 with a pooling layer, but the number of hidden layers is less than 3. This is just a 1-2 layer fully connected net. Returning false to avoid duplication."
+    if num_laminations > 1 && (input_pool ⊻ output_pool) && num_layers < 3
+        if verbose
+            @warn "Number of laminations is greater than 1 with a pooling layer, but the number of hidden layers is less than 3. This is just a 1-2 layer fully connected net. Returning false to avoid duplication."
+        end
         return false
     end
 
-    if numLaminations == 1 && (inputPool || outputPool)
-        @warn "Number of laminations is 1 but an input and/or an output pooling layer has been requested. Without laminations, these poolings don't make sense. Returning false to avoid duplication."
+    if num_laminations == 1 && (input_pool || output_pool)
+        if verbose
+            @warn "Number of laminations is 1 but an input and/or an output pooling layer has been requested. Without laminations, these poolings don't make sense. Returning false to avoid duplication."
+        end
         return false
     end
 
-    if numLayers == 1 && recurrence
-        @warn "Single layer recurrent network is not possible. Returning false to avoid duplication."
+    if num_layers == 1 && recurrence
+        if verbose
+            @warn "Single layer recurrent network is not possible. Returning false to avoid duplication."
+        end
         return false
     end
 
-    lam_splits = Int.(sort([floor(numNeurons*(k+1)/numLaminations) - 
-                    floor(numNeurons*k / numLaminations) for k in 1:numLaminations], rev=true))
+    lam_splits = Int.(sort([floor(num_neurons*(k+1)/num_laminations) - 
+                    floor(num_neurons*k / num_laminations) for k in 1:num_laminations], rev=true))
     for lam_neurons in lam_splits
-        if lam_neurons < numLayers
-            @warn "You have defined too many layers for the number of neurons some layers will have no neurons. Returning false to avoid this."
+        if lam_neurons < num_layers
+            if verbose
+                @warn "You have defined too many layers for the number of neurons some layers will have no neurons. Returning false to avoid this."
+            end
             return false
         end
     end
     layer_splits = []
     for lam_neurons in lam_splits
-        splits = Int.(sort([floor(lam_neurons*(k+1)/numLayers) - floor(lam_neurons*k / numLayers) for k in 1:numLayers], rev=true))
+        splits = Int.(sort([floor(lam_neurons*(k+1)/num_layers) - floor(lam_neurons*k / num_layers) for k in 1:num_layers], rev=true))
         push!(layer_splits, splits)
     end
     branches = [] 
 
     if reservoir
         if recurrence
-            input_dims = lengthAlphabet * reservoir_scaling
+            input_dims = length_alphabet * reservoir_scaling
         else
-            input_dims = lengthStrings*lengthAlphabet * reservoir_scaling
+            input_dims = length_strings*length_alphabet * reservoir_scaling
         end
     else
         if recurrence
-            input_dims = lengthAlphabet
+            input_dims = length_alphabet
         else
-            input_dims = lengthStrings*lengthAlphabet
+            input_dims = length_strings*length_alphabet
         end
     end
 
@@ -308,7 +576,7 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
                 Dense(input_dims, splits[1], relu),
             )
         else
-            if (!inputPool && !outputPool)
+            if (!input_pool && !output_pool)
                 if recurrence
                     branch = Chain(
                         RNN(input_dims, splits[1], relu),
@@ -322,7 +590,7 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
                         Dense(splits[end-1], splits[end], relu)
                     )
                 end
-            elseif (inputPool && !outputPool)
+            elseif (input_pool && !output_pool)
                 if recurrence
                     branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], relu),
                         [RNN(splits[i], splits[i+1], relu) for i in 2:(length(splits) - 2)]...,
@@ -334,7 +602,7 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
                                 Dense(splits[end-1], splits[end], relu)
                                 )
                 end
-            elseif (!inputPool && outputPool)
+            elseif (!input_pool && output_pool)
                 if recurrence
                     branch = Chain(
                         RNN(input_dims, splits[1], relu),
@@ -348,7 +616,7 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
                         Dense(splits[end-2], splits[(length(splits) - 1)], relu)
                     )
                 end
-            elseif (inputPool && outputPool)
+            elseif (input_pool && output_pool)
                 if recurrence
                     branch = Chain(RNN(sum([splits[1] for splits in layer_splits]), splits[2], relu),
                         [RNN(splits[i], splits[i+1], relu) for i in 2:(length(splits)-3)]...,
@@ -367,88 +635,88 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
         push!(branches, branch)
     end
 
-    if (!inputPool && !outputPool)
+    if (!input_pool && !output_pool)
         if reservoir
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, input_dims, relu), Parallel(vcat, branches...)),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Chain(RNN(length_alphabet, input_dims, relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                 )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(length_strings*length_alphabet, input_dims, relu),
                     Parallel(vcat, branches...),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         else
             if recurrence
                 model = rnnClassifier(
                     Parallel(vcat, branches...),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                 )
             else
                 model = Chain(
                     Parallel(vcat, branches...),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         end
-    elseif (inputPool && !outputPool)
+    elseif (input_pool && !output_pool)
         if reservoir
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, input_dims, relu), RNN(input_dims, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Chain(RNN(length_alphabet, input_dims, relu), RNN(input_dims, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(length_strings*length_alphabet, input_dims, relu),
                     Dense(input_dims, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         else
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Chain(RNN(length_alphabet, sum([splits[1] for splits in layer_splits]), relu), Parallel(vcat, branches...)),
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Dense(length_strings*length_alphabet, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         end
-    elseif (!inputPool && outputPool)
+    elseif (!input_pool && output_pool)
         if reservoir
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, input_dims, relu), Parallel(vcat, branches...), RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Chain(RNN(length_alphabet, input_dims, relu), Parallel(vcat, branches...), RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)),
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(length_strings*length_alphabet, input_dims, relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         else
             if recurrence
                 model = rnnClassifier(
                     Chain(Parallel(vcat, branches...), RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             else
                 model = Chain(
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         end
@@ -456,37 +724,37 @@ function createModel(numNeurons, numLayers, numLaminations, recurrence, inputPoo
         if reservoir
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, input_dims, relu),
+                    Chain(RNN(length_alphabet, input_dims, relu),
                     RNN(input_dims, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)
                     ),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                 )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, input_dims, relu),
+                    Dense(length_strings*length_alphabet, input_dims, relu),
                     Dense(input_dims, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         else
             if recurrence
                 model = rnnClassifier(
-                    Chain(RNN(lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Chain(RNN(length_alphabet, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     RNN(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu)
                     ),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                 )
             else
                 model = Chain(
-                    Dense(lengthStrings*lengthAlphabet, sum([splits[1] for splits in layer_splits]), relu),
+                    Dense(length_strings*length_alphabet, sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]), sum([splits[end] for splits in layer_splits]), relu),
-                    Dense(sum([splits[end] for splits in layer_splits]), numClasses, sigmoid)
+                    Dense(sum([splits[end] for splits in layer_splits]), num_classes, sigmoid)
                     )
             end
         end
@@ -547,10 +815,10 @@ function agl_predict(model, tx, ty, recurrence, stringLength)
 end
 
 function training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, batch_size, 
-    modelID, grammarID, recurrence, reservoir, throttle = 0.000001, verbose = true)
+    modelID, grammarid, recurrence, reservoir, string_length, throttle = 0.000001, verbose = true)
 
     acc_losses = DataFrame(modelID = Int32[],
-                            grammarID = Int32[], 
+                            grammarid = Int32[], 
                             epoch = Int32[],
                             batch = Int32[],
                             loss = Float32[],
@@ -583,18 +851,18 @@ function training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, b
             if recurrence
                 Flux.reset!(model)
                 x, y = x_train[idx], train_y[:, idx]
-                x = [hcat([χ[i] for χ in x]...) for i in 1:stringLength] # Reshape X for RNN format
+                x = [hcat([χ[i] for χ in x]...) for i in 1:string_length] # Reshape X for RNN format
             else
                 x, y = x_train[:, idx], train_y[:, idx]
             end
             curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
             opt_state, model = Flux.update!(opt_state, model, gs[1]) 
 
-            train_preds, train_outs = agl_predict(model, train_x, train_y, recurrence, stringLength)
-            test_preds, test_outs = agl_predict(model, test_x, test_y, recurrence, stringLength)
+            train_preds, train_outs = agl_predict(model, train_x, train_y, recurrence, string_length)
+            test_preds, test_outs = agl_predict(model, test_x, test_y, recurrence, string_length)
 
             dataframe = DataFrame(modelID = modelID,
-                                    grammarID = grammarID,
+                                    grammarid = grammarid,
                                     epoch = epoch,
                                     batch = batch,
                                     loss = curr_loss,
@@ -629,11 +897,11 @@ end
 pen_l2(x::AbstractArray) = sum(abs2, x)/2
 
 # train model function
-function trainModelOnGrammar(grammar_strings, model, alphabetLength, n_epochs, modelID, recurrence, reservoir, 
+function train_model(grammar_strings, model, alphabet_length, string_length, n_epochs, modelID, recurrence, reservoir, 
                              throttle = 0.000001, batch_size = 10, prop_tests = 0.3, opt = Momentum(0.01, 0.95), verbose = true)
 
     # get train test split
-    train_x, train_y, test_x, test_y = train_test_split(grammar_strings, prop_tests, alphabetLength)
+    train_x, train_y, test_x, test_y = train_test_split(grammar_strings, prop_tests, alphabet_length)
 
     # make train/test columns for pretraining
     Train_str =  ["Train"]
@@ -641,17 +909,17 @@ function trainModelOnGrammar(grammar_strings, model, alphabetLength, n_epochs, m
     grammar_strings.TrainOrTest = vcat(repeat(Train_str, length(train_x)), repeat(Test_str, length(test_x)))
 
     # test the model out on the strings we have, before we train the model
-    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, stringLength)
-    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, stringLength)
+    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, string_length)
+    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, string_length)
 
     grammar_strings.initialProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
     ## Need to massage the train_x data into sequences of one-hot encoded vectors for each character: https://jldc.ch/post/seq2one-flux/
     model, acc_and_losses = training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, batch_size,
-                                          modelID, grammar_strings.grammarID[1], recurrence, reservoir, throttle, verbose)
+                                          modelID, grammar_strings.grammarid[1], recurrence, reservoir, throttle, verbose)
 
-    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, stringLength)
-    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, stringLength)
+    probs_trainX, _ = agl_predict(model, train_x, train_y, recurrence, string_length)
+    probs_testX, _ = agl_predict(model, test_x, test_y, recurrence, string_length)
 
     grammar_strings.trainedProbs = Float32.(vec(hcat(probs_trainX, probs_testX)))
 
