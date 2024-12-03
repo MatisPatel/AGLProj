@@ -311,7 +311,7 @@ function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
     done = false
     grammar = nothing
 
-    if loops
+    if loops # TODO: ignore loops = False options
 
         while !done
             grammar = reshape(shuffle(vcat(repeat([1], edges),
@@ -332,7 +332,7 @@ function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
         end
 
         if edges == N
-            return "ERROR: To few edges to construct with no loops, or at least it will take too long..."
+            return "ERROR: Too few edges to construct with no loops, or at least it will take too long..."
         end
         # [[j==i ? 0 : 1 for j in 1:N] for i in 1:N]
         while !done
@@ -904,7 +904,7 @@ function training_loop(model, opt, train_x, train_y, test_x, test_y, n_epochs, b
                 x, y = x_train[:, idx], train_y[:, idx]
             end
             curr_loss, gs = Flux.withgradient(m -> Flux.logitbinarycrossentropy(m(x), y), model)
-            opt_state, model = Flux.update!(opt_state, model, gs[1]) 
+            opt_state, model = Flux.update!(opt_state, model, gs[1]) # TODO: look at memory allocations
 
             train_preds, train_outs = agl_predict(model, train_x, train_y, recurrence, string_length)
             test_preds, test_outs = agl_predict(model, test_x, test_y, recurrence, string_length)
