@@ -1,0 +1,100 @@
+db_credentials_secret:
+  path: "database_connection.csv" # containing the credentials for database connection
+grammar_parameters:
+  alphabet_length: &alphlength 6 # number of letters in alphabet (i.e., states in adjacency matrix)
+  num_grammars: 100 # number of grammars to generate
+  num_attempts: 10 # number of attempts to try to find unique adjacency matrices
+  entropy_rounding_precision: 5 # rounding for entropy values
+  seed: 2022 # random seed for grammar generation
+string_parameters:
+  string_length: &strlength 2
+  num_strings: 250
+  num_errors: &numerrors 1
+  seed: 1997 # random seed for string generation
+model_parameters:
+  min_num_neurons: 8
+  max_num_neurons: 512
+  neuron_increments: 4
+  min_num_layers: 1
+  max_num_layers: 20
+  max_num_laminations: 8
+  reservoir_scaling_factor: 4
+  num_errors: *numerrors
+  alphabet_length: *alphlength
+  string_length: *strlength
+  seed: 1234
+tables:
+  grammars:
+    name: "grammars"
+    columns: 
+    # Preserve order of columns
+      - ["grammarid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
+      - ["connections", "INT NOT NULL"]
+      - ["loops", "INT NOT NULL"]
+      - ["topentropy", "FLOAT NOT NULL"]
+      - ["adjmatrixrealentropy", "FLOAT"]
+      - ["adjmatriximagentropy", "FLOAT"]
+      - ["adjmatrixmodentropy", "FLOAT"]
+      - ["indlaplacianrealentropy", "FLOAT"]
+      - ["indlaplacianimagentropy", "FLOAT"]
+      - ["indlaplacianmodentropy", "FLOAT"]
+      - ["slesslaplacianrealentropy", "FLOAT"]
+      - ["slesslaplacianimagentropy", "FLOAT"]
+      - ["slesslaplacianmodentropy", "FLOAT"]
+      - ["alphabetLength", "INT"]
+      - ["transitionMatrix", "CHAR(%((x^2)*4)%) UNIQUE", *alphlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  strings:
+    name: "strings"
+    columns: 
+    # Preserve order of columns
+      - ["grammarid", "INT NOT NULL"]
+      - ["string", "VARCHAR(%(x+5)%) NOT NULL", *strlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
+      - ["stringlength", "INT NOT NULL"]
+      - ["stringnumberencoding", "VARCHAR(%(x*5)%)", *strlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
+      - ["error", "INT NOT NULL"]
+      - ["stringid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  models:
+    name: "modelatts"
+    columns:
+    # Preserve order of columns
+      - ["modelid", "INT AUTO_INCREMENT PRIMARY KEY"]
+      - ["neurons", "INT"] 
+      - ["layers", "INT"]
+      - ["laminations", "INT"]
+      - ["recurrence", "BOOL"]
+      - ["inpool", "BOOL"]
+      - ["outpool", "BOOL"]
+      - ["reservoir", "BOOL"]
+      - ["run", "BOOL"]
+    constraint: "UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool, reservoir)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  modeloutputs:
+    name: "modeloutputs"
+    columns:
+    # Preserve order of columns
+    - ["traininginstanceid", "INT AUTO_INCREMENT PRIMARY KEY"]
+    - ["grammarid", "INT NOT NULL"]
+    - ["stringid", "INT NOT NULL"]
+    - ["modelid", "INT NOT NULL"]
+    - ["trainteststring", "VARCHAR(200)"]
+    - ["pretrainprobs", "FLOAT(32)"]
+    - ["posttrainprobs", "FLOAT(32)"]
+    - ["epochs", "INT"]
+    constraint: "UNIQUE (stringid, modelid)"
+    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+  accuracieslosses:
+    name: "accuracieslosses"
+    columns:
+    # Preserve order of columns
+    - ["modelid", "INT NOT NULL"]
+    - ["grammarid", "INT NOT NULL"]
+    - ["epoch", "INT NOT NULL"]
+    - ["batch", "INT NOT NULL"]
+    - ["loss", "FLOAT NOT NULL"]
+    - ["trainbrier", "FLOAT NOT NULL"]
+    - ["testbrier", "FLOAT NOT NULL"]
+    - ["throttle", "FLOAT NOT NULL"]
+    constraint: "UNIQUE (modelid, grammarid, epoch, batch)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
