@@ -332,7 +332,7 @@ end
 # Generate fully connected, fully transitioned grammars
 function generate_connected_grammar(N::Int, edges::Int, loops::Bool, K::Int)
     """ 
-    Function to generate an adjaceny grammar. 
+    Function to generate an adjacency grammar. 
 
     N is the alphabet size 
     edges are the num of edges max edges is (N^K)^2
@@ -381,6 +381,42 @@ function generate_connected_grammar(N::Int, edges::Int, loops::Bool, K::Int)
             end
         end
     end
+    out_degree_matrix = diagm(vec(sum(grammar, dims=1)))
+    in_degree_matrix = diagm(vec(sum(grammar, dims=2)))
+    output_dict = Dict(
+        "grammar"=>grammar,
+        "out_degree_matrix"=>out_degree_matrix,
+        "in_degree_matrix"=>in_degree_matrix,
+        "out_degree_laplacian"=>(out_degree_matrix .- grammar),
+        "in_degree_laplacian"=>(in_degree_matrix .- grammar),
+        "signless_in_degree_laplacian"=>(in_degree_matrix .+ grammar) # For Sun et al. (2021) entropy calcs
+    )
+    return output_dict
+end
+
+# Generate fully transitioned grammars
+function generate_grammar(N::Int, edges::Int, K::Int)
+    """ 
+    Function to generate an adjacency grammar, ignoring connectedness and loops. 
+
+    N is the alphabet size 
+    edges are the num of edges max edges is (N^K)^2
+    K is the length of the kgrams. 1 is regular grammar, 2+ is a context-sensitive grammar because the validity of transitions between two letters depends on whether they are in a tuple or between two tuples.
+    """
+    if edges > (N^K)^2
+        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    end
+
+    done = false
+    grammar = nothing
+
+    while !done
+        grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], (N^K)^2 - edges))), N^K, N^K)
+        if check_full_transitions(grammar)
+            done = true
+        end
+    end
+
     out_degree_matrix = diagm(vec(sum(grammar, dims=1)))
     in_degree_matrix = diagm(vec(sum(grammar, dims=2)))
     output_dict = Dict(

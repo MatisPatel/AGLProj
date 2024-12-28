@@ -52,8 +52,7 @@ for gt in grammar_types
         k = 1
     end
     println("Generating grammars of type ", grammar_type)
-    for loops in [true, false]
-        println("Attempting to generate ", (num_grammars*((grammar_connections[end]-grammar_connections[1])+1)) ," grammars $(ifelse(loops, "with", "without")) loops")
+    println("Attempting to generate ", (num_grammars*((grammar_connections[end]-grammar_connections[1])+1)) ," grammars.")
         for num_conn in grammar_connections 
             grammar_counter = 0
             num_conn = num_conn^k
@@ -61,8 +60,13 @@ for gt in grammar_types
                 for attempt in 1:num_attempts
                     if grammar_counter < num_grammars # only try more attempts if you have less than the desired number of grammars
                         try
-                            grammar_dict = generate_connected_grammar(alphabet_length, num_conn, loops, k)
+                            grammar_dict = generate_grammar(alphabet_length, num_conn, k)
 
+                            if sum(Diagonal(grammar_dict["grammar"])) >= 1
+                                loops = true
+                            else
+                                loops = false
+                            end
                             entropy_list = compute_grammar_entropy(grammar_dict["grammar"], grammar_dict["in_degree_laplacian"], grammar_dict["signless_in_degree_laplacian"])
                             entropy_list = [ifelse(isnan(e), "NULL", e) for e in entropy_list]
 
@@ -85,7 +89,6 @@ for gt in grammar_types
                 end
             end
         end
-    end
 end
 
 #################################################################################################################################
