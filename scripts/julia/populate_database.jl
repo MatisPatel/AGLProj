@@ -39,38 +39,54 @@ load_parameters(settings, "model_parameters")
 # Make grammars and push to DB
 
 ## with loops
-for loops in [true, false]
-    println("Attempting to generate ", (num_grammars*((grammar_connections[end]-grammar_connections[1])+1)) ," grammars $(ifelse(loops, "with", "without")) loops")
-    for num_conn in grammar_connections 
-        grammar_counter = 0
-        for grammar_num in 1:num_grammars
-            for attempt in 1:num_attempts
-                if grammar_counter < num_grammars # only try more attempts if you have less than the desired number of grammars
-                    try
-                        grammar_dict = generate_connected_grammar(alphabet_length, num_conn, loops)
+grammar_types = ["cfg"; 1:max_k_grams]
+for gt in grammar_types
+    if isa(gt, Int) && gt == 1
+        grammar_type = "reg"
+        k = 1
+    elseif isa(gt, Int) && gt > 1
+        grammar_type = "csg"
+        k = gt
+    else
+        grammar_type = gt
+        k = 1
+    end
+    println("Generating grammars of type ", grammar_type)
+    for loops in [true, false]
+        println("Attempting to generate ", (num_grammars*((grammar_connections[end]-grammar_connections[1])+1)) ," grammars $(ifelse(loops, "with", "without")) loops")
+        for num_conn in grammar_connections 
+            grammar_counter = 0
+            num_conn = num_conn^k
+            for grammar_num in 1:num_grammars
+                for attempt in 1:num_attempts
+                    if grammar_counter < num_grammars # only try more attempts if you have less than the desired number of grammars
+                        try
+                            grammar_dict = generate_connected_grammar(alphabet_length, num_conn, loops, k)
 
-                        entropy_list = compute_grammar_entropy(grammar_dict["grammar"], grammar_dict["in_degree_laplacian"], grammar_dict["signless_in_degree_laplacian"])
-                        entropy_list = [ifelse(isnan(e), "NULL", e) for e in entropy_list]
+                            entropy_list = compute_grammar_entropy(grammar_dict["grammar"], grammar_dict["in_degree_laplacian"], grammar_dict["signless_in_degree_laplacian"])
+                            entropy_list = [ifelse(isnan(e), "NULL", e) for e in entropy_list]
 
-                        entropy_value_list = vcat(num_conn, Int(loops), entropy_list, alphabet_length, "\"$(grammar_dict["grammar"])\"")
-                        col_names = [x[1] for x in settings["tables"]["grammars"]["columns"][2:end]]
-                        query = build_insert_query(settings["tables"]["grammars"]["name"], col_names, entropy_value_list)
+                            grammar_hash = bytes2hex(sha256(string(grammar_dict["grammar"])))
 
-                        DBInterface.execute(con, query) # push to DB - will fail if there is an identical transition matrix, as this has a unique constraint.
+                            entropy_value_list = vcat(k, "\"$(grammar_type)\"", num_conn, Int(loops), entropy_list, alphabet_length, "\"$(grammar_dict["grammar"])\"", "\"$(grammar_hash)\"")
+                            col_names = [x[1] for x in settings["tables"]["grammars"]["columns"][2:end]]
+                            query = build_insert_query(settings["tables"]["grammars"]["name"], col_names, entropy_value_list)
 
-                        grammar_counter += 1 # successfully added a grammar to the database, so add 1 to the counter
-                    catch
-                        println("A non-unique transition matrix was found for grammar number ", grammar_num, " of grammars with ", num_conn, " connections and loops = ", loops, ". Attempt ", attempt, " of ", num_attempts)
-                        continue
+                            DBInterface.execute(con, query) # push to DB - will fail if there is an identical transition matrix, as this has a unique constraint.
+
+                            grammar_counter += 1 # successfully added a grammar to the database, so add 1 to the counter
+                        catch
+                            println("A non-unique transition matrix was found for grammar number ", grammar_num, " of grammars with ", num_conn, " connections and loops = ", loops, ". Attempt ", attempt, " of ", num_attempts)
+                            continue
+                        end
+                    else
+                        break
                     end
-                else
-                    break
                 end
             end
         end
     end
 end
-
 
 #################################################################################################################################
 # 2. Make grammar strings

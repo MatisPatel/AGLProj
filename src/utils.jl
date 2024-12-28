@@ -1,5 +1,5 @@
 ## Functions to export
-using Combinatorics, CSV, DataFrames, Flux, LinearAlgebra, Logging, MySQL, Random, StatsBase, YAML
+using Combinatorics, CSV, DataFrames, Flux, IterTools, LinearAlgebra, Logging, MySQL, Random, SHA, StatsBase, YAML
 
 #==================================================================================#
 # 0. General helper functions
@@ -54,6 +54,10 @@ function initialise_db(yaml_settings_name)
         build = _build_db_table(table, con)
         if !build 
             println("Could not build $(table["name"]).")
+        else
+            if settings["tables"][t]["delete_and_rebuild"]
+                println("Rebuilt table $(table["name"]).")
+            end
         end
     end
 
@@ -92,6 +96,7 @@ function _build_db_table(yaml_table_field_element, con)
 
     if rebuild
         dropquery = string("DROP TABLE IF EXISTS $(name)")
+        println("Dropping table $(name)...")
         DBInterface.execute(con, dropquery)
     end
 
@@ -108,21 +113,38 @@ end
 # Loads YAML file from file name and cleans it up
 function load_yaml(yaml_file_name)
     function _interpret_yaml_code(yaml_dict)
-        function _evaluate_strings(col_entry)
-            if length(col_entry) == 3
+        function _evaluate_strings(col_entry, type)
+            if length(col_entry) == 3 && type == "column"
                 x = col_entry[3]
                 m = match(r"%.*%", col_entry[2])
                 interp = replace(replace(m.match, "x" => string(x)), "%" => "")
                 out = eval(Meta.parse(interp))
                 col_entry[2] = replace(col_entry[2], r"%.*%" => string(out))
+            elseif type == "constraint"
+                x = col_entry[2]
+                m = match(r"%.*%", col_entry[1])
+                if length(col_entry) == 3
+                    y = col_entry[3]
+                    interp = replace(replace(m.match, "x" => string(x), "y" => string(y)), "%" => "")
+                else
+                    interp = replace(m.match, "x" => string(x), "%" => "")
+                end
+                out = eval(Meta.parse(interp))
+                col_entry[1] = replace(col_entry[1], r"%.*%" => string(out))
             end
             return col_entry
         end
     
         for table in keys(yaml_dict["tables"])
             for column in 1:length(yaml_dict["tables"][table]["columns"])
-                 replaced = _evaluate_strings(yaml_dict["tables"][table]["columns"][column])
-                 yaml_dict["tables"][table]["columns"][column] = replaced
+                replaced = _evaluate_strings(yaml_dict["tables"][table]["columns"][column], "column")
+                yaml_dict["tables"][table]["columns"][column] = replaced
+            end
+            if "constraint" in keys(yaml_dict["tables"][table])
+                if isa(yaml_dict["tables"][table]["constraint"], Array) && length(yaml_dict["tables"][table]["constraint"]) > 1
+                    replaced_constraint = _evaluate_strings(yaml_dict["tables"][table]["constraint"], "constraint")
+                    yaml_dict["tables"][table]["constraint"] = replaced_constraint[1]
+                end
             end
         end
         return yaml_dict
@@ -142,7 +164,7 @@ function load_yaml(yaml_file_name)
             end
         end
 
-        grammar_fields = ["alphabet_length", "num_grammars", "num_attempts", "entropy_rounding_precision", "seed"]
+        grammar_fields = ["alphabet_length", "max_k_grams", "num_grammars", "num_attempts", "entropy_rounding_precision", "seed"]
         for f in grammar_fields
             if !(f in keys(settings["grammar_parameters"]))
                 error("$(f) field is missing from grammar_parameters in YAML at $(yaml_location)! Please copy the template.")
@@ -213,7 +235,7 @@ function check_database(yaml_settings_name)
     for t in keys(settings["tables"])
         table = settings["tables"][t]
         if !(table["name"] in tables[!, 1])
-            error("Table $(t["name"]) is not in the database.")
+            error("Table $(t) is not in the database.")
         end
 
         columns = DBInterface.execute(con, "SHOW COLUMNS FROM $(table["name"]);") |> DataFrame
@@ -234,13 +256,14 @@ end
 function load_parameters(settings, type)
     if type == "grammar_parameters"
         global alphabet_length = settings["grammar_parameters"]["alphabet_length"]
+        global max_k_grams = settings["grammar_parameters"]["max_k_grams"]
         global num_grammars = settings["grammar_parameters"]["num_grammars"]
         global num_attempts = settings["grammar_parameters"]["num_attempts"]
         global entropy_rounding_precision = settings["grammar_parameters"]["entropy_rounding_precision"]
         global grammar_seed = settings["grammar_parameters"]["seed"]
         global alphabet = 'a':'z'
-        grammar_connections = alphabet_length*2:alphabet_length^2-alphabet_length
-        println("Loading grammar parameters: alphabet_length ($(alphabet_length)), num_grammars ($(num_grammars)), num_attempts ($(num_attempts)),\
+        global grammar_connections = alphabet_length*2:alphabet_length^2-alphabet_length
+        println("Loading grammar parameters: alphabet_length ($(alphabet_length)), max_k_grams ($(max_k_grams)), num_grammars ($(num_grammars)), num_attempts ($(num_attempts)),\
         entropy_rounding_precision ($(entropy_rounding_precision)), grammar_seed ($(grammar_seed)), alphabet ($(alphabet)), grammar_connections ($(grammar_connections)).")
     elseif type == "string_parameters"
         global string_length = settings["string_parameters"]["string_length"]
@@ -306,16 +329,26 @@ function check_full_transitions(grammar)
     return full_trans
 end
 
-# Generate fully connected, fully transitioned grammars with and without loops (loops = same state can be visited multiple times sequentially)
-function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
+# Generate fully connected, fully transitioned grammars
+function generate_connected_grammar(N::Int, edges::Int, loops::Bool, K::Int)
+    """ 
+    Function to generate an adjaceny grammar. 
+
+    N is the alphabet size 
+    edges are the num of edges max edges is (N^K)^2
+    K is the length of the kgrams. 1 is regular grammar, 2+ is a context-sensitive grammar because the legality of transitions between two letters depends on whether they are in a tuple or between two tuples.
+    """
+    if edges > (N^K)^2
+        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    end
+
     done = false
     grammar = nothing
 
-    if loops # TODO: ignore loops = False options
+    if loops 
 
         while !done
-            grammar = reshape(shuffle(vcat(repeat([1], edges),
-                    repeat([0], N^2 - edges))), N, N)
+            grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], (N^K)^2 - edges))), N^K, N^K)
             if check_full_transitions(grammar)
                 if check_connected(grammar)
                     if sum(Diagonal(grammar)) >= 1 # added constraint so that it must have loops
@@ -336,14 +369,12 @@ function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
         end
         # [[j==i ? 0 : 1 for j in 1:N] for i in 1:N]
         while !done
-            list_edges = shuffle(vcat(repeat([1], edges),
-                    repeat([0], N^2-N - edges))) 
-            grammar = vcat([[j==i ? 0 : pop!(list_edges) for j in 1:N] for i in 1:N])
+            list_edges = shuffle(vcat(repeat([1], edges), repeat([0], (N^K)^2-(N^K) - edges))) 
+            grammar = vcat([[j==i ? 0 : pop!(list_edges) for j in 1:(N^K)] for i in 1:(N^K)])
             grammar = reduce(hcat, grammar)
-            #println(sum(Diagonal(grammar)))
-            if sum(Diagonal(grammar)) == 0
+            if sum(Diagonal(grammar)) == 0 # added constraint so that it must not have loops
                 if check_full_transitions(grammar)
-                    if check_connected(grammar) # added constraint so that it must not have loops
+                    if check_connected(grammar) 
                         done = true
                     end
                 end
@@ -361,185 +392,6 @@ function generate_connected_grammar(N::Int, edges::Int, loops::Bool)
         "signless_in_degree_laplacian"=>(in_degree_matrix .+ grammar) # For Sun et al. (2021) entropy calcs
     )
     return output_dict
-end
-
-""" 
-Function to make a grammar and draw it. 
-
-N is the alphabet size 
-K is the length of the kgrams (2 or 3 usually)
-edges are the num of edges max edges is (N^K)^2
-"""
-function drawRaisedGrammar(N, K, edges)
-    if edges > (N^K)^2
-        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
-    end
-    alph_size = N
-    mora_size = N^K
-    listEdges = shuffle(vcat(repeat([1], edges),
-                    repeat([0], mora_size^2-mora_size - edges))) 
-    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
-    grammar = reduce(hcat, grammar)
-    # Input vector of characters
-    chars = collect('A':'Z')[1:alph_size]
-    # Form a vector of all possible bigram strings
-    moras = generate_kgrams(chars, K)
-    return graphplot(grammar, names = moras, nodesize=0.15, method=:grid, nodealpha=0)
-end
-
-""" 
-Function to make a grammar returns the grammar and the list of ordered moras. 
-
-N is the alphabet size 
-K is the length of the kgrams (2 or 3 usually)
-edges are the num of edges max edges is (N^K)^2
-"""
-function makeRaisedGrammar(N, K, edges)
-    if edges > (N^K)^2
-        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
-    end
-    alph_size = N
-    mora_size = N^K
-    listEdges = shuffle(vcat(repeat([1], edges),
-                    repeat([0], mora_size^2-mora_size - edges))) 
-    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
-    grammar = reduce(hcat, grammar)
-    # Input vector of characters
-    chars = collect('A':'Z')[1:alph_size]
-    # Form a vector of all possible bigram strings
-    moras = generate_kgrams(chars, K)
-    return (grammar, moras)
-end
-
-function drawRaisedGrammar(N, K, edges)
-    alph_size = N
-    mora_size = N^K
-    listEdges = shuffle(vcat(repeat([1], edges),
-                    repeat([0], mora_size^2-mora_size - edges))) 
-    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
-    grammar = reduce(hcat, grammar)
-    # Input vector of characters
-    chars = collect('A':'Z')[1:alph_size]
-    # Form a vector of all possible bigram strings
-    moras = generate_kgrams(chars, K)
-    return graphplot(grammar, names = moras, nodesize=0.15, method=:grid, nodealpha=0)
-end
-
-function makeRaisedGrammar(N, K, edges)
-    alph_size = N
-    mora_size = N^K
-    listEdges = shuffle(vcat(repeat([1], edges),
-                    repeat([0], mora_size^2-mora_size - edges))) 
-    grammar = vcat([[j==i ? 0 : pop!(listEdges) for j in 1:mora_size] for i in 1:mora_size])
-    grammar = reduce(hcat, grammar)
-    # Input vector of characters
-    chars = collect('A':'Z')[1:alph_size]
-    # Form a vector of all possible bigram strings
-    moras = generate_kgrams(chars, K)
-    return (grammar, moras)
-end
-
-function makeRaisedStringNoErrors(N, K, grammar, moras, string_length)
-    morasLength = length(moras)
-    @assert grammar.size[1] == morasLength "size of grammar and number of kgrams do not match"
-    @assert string_length % K == 0 "Can't make strings not divisible by K"
-
-    initial_mora = nothing 
-    while isnothing(initial_mora)
-        candidate_mora = rand(1:morasLength)
-        if sum(grammar[candidate_mora, :]) > 0
-            initial_mora = candidate_mora
-        end
-    end
-    # println(moras[candidate_mora])
-    num_moras = div(string_length, K)
-    string_idxs = Vector(undef, num_moras)
-    string_idxs[1] = initial_mora
-
-    for i in 2:num_moras
-        next = sample(1:morasLength, Weights(grammar[string_idxs[i-1], :]))
-        string_idxs[i] = next
-        # println(string_idxs)
-    end
-
-    string = join(moras[string_idxs])
-
-    return string, string_idxs
-end
-
-
-function makeRaisedStringErrors(N, K, grammar, moras, string_length, errors)
-    morasLength = length(moras)
-    num_moras = div(string_length, K)
-    @assert grammar.size[1] == morasLength "size of grammar and number of kgrams do not match"
-    @assert string_length % K == 0 "Can't make strings not divisible by K"
-    @assert errors < num_moras-1 "Number of errors exceeds the possible transitions"
-
-    initial_mora = nothing 
-    while isnothing(initial_mora)
-        candidate_mora = rand(1:morasLength)
-        if sum(grammar[candidate_mora, :]) > 0
-            initial_mora = candidate_mora
-        end
-    end
-    # println(moras[candidate_mora])
-    string_idxs = Vector(undef, num_moras)
-    string_idxs[1] = initial_mora
-    where_errors = sample(2:num_moras, errors, replace=false)
-
-    for i in 2:num_moras
-        if i in where_errors
-            next = sample(1:morasLength, Weights(error_grammar[string_idxs[i-1], :]))
-            string_idxs[i] = next
-            # println("error ", i)
-        else 
-            next = sample(1:morasLength, Weights(grammar[string_idxs[i-1], :]))
-            string_idxs[i] = next
-        end
-    end
-
-    string = join(moras[string_idxs])
-
-    return string, string_idxs, where_errors
-end
-
-
-"""
-Function to make a string with errros from a raised grammar. 
-"""
-function makeRaisedStringErrors(N, K, grammar, moras, string_length, errors)
-    morasLength = length(moras)
-    num_moras = div(string_length, K)
-    @assert grammar.size[1] == morasLength "size of grammar and number of kgrams do not match"
-    @assert string_length % K == 0 "Can't make strings not divisible by K"
-    @assert errors < num_moras-1 "Number of errors exceeds the possible transitions"
-
-    initial_mora = nothing 
-    while isnothing(initial_mora)
-        candidate_mora = rand(1:morasLength)
-        if sum(grammar[candidate_mora, :]) > 0
-            initial_mora = candidate_mora
-        end
-    end
-    # println(moras[candidate_mora])
-    string_idxs = Vector(undef, num_moras)
-    string_idxs[1] = initial_mora
-    where_errors = sample(2:num_moras, errors, replace=false)
-
-    for i in 2:num_moras
-        if i in where_errors
-            next = sample(1:morasLength, Weights(error_grammar[string_idxs[i-1], :]))
-            string_idxs[i] = next
-            # println("error ", i)
-        else 
-            next = sample(1:morasLength, Weights(grammar[string_idxs[i-1], :]))
-            string_idxs[i] = next
-        end
-    end
-
-    string = join(moras[string_idxs])
-
-    return string, string_idxs, where_errors
 end
 
 # Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
@@ -605,51 +457,56 @@ end
 # 2. Generate strings
 
 # String maker function
-function make_string(alphabet, grammar, err_grammar, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
-    str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
-    alph_size = length(alphabet) # get length of alphabet
-    str_idxs[1] = rand(1:alph_size) # assign first index to be a random letter in alphabet
-    where_errors = nothing
-    if (errors < str_len-1)
-        where_errors = sample(2:str_len, errors, replace=false)
-    else
-        where_errors = 2:str_len
-    end
-    for n in 2:str_len 
-        if n in where_errors
-            next = sample(1:alph_size, Weights(err_grammar[str_idxs[n-1], :]))
-            str_idxs[n] = next
-        else 
-            next = sample(1:alph_size, Weights(grammar[str_idxs[n-1], :]))
-            str_idxs[n] = next
-        end
-    end 
-    return join(alphabet[str_idxs]), str_idxs, where_errors
-end
+function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, error) 
+    """
+    Generates a string from a grammar
 
-# Make grammar strings from raised grammar
-#genMoras(alphabet, k) = collect(with_replacement_combinations(alphabet, k))
-function makeRaisedString(alphabet, grammar, err_grammar, n_raised, str_len, errors) # takes an alphabet, a grammar, an error_grammar which is a transformation of that grammar, the length of the strings you want to build, and the number of errors you want
-    str_idxs = Vector{Int64}(undef, str_len) # make vector of undefined values
-    moras = genMoras(alphabet, n_raised)
-    moraSize = length(moras) # get length of alphabet
-    str_idxs[1] = rand(1:moraSize) # assign first index to be a random letter in alphabet
-    where_errors = nothing
-    if (errors < str_len-1)
-        where_errors = sample(2:str_len, errors, replace=false)
-    else
-        where_errors = 2:str_len
-    end
-    for n in 2:str_len 
-        if n in where_errors
-            next = sample(1:moraSize, Weights(err_grammar[str_idxs[n-1], :]))
-            str_idxs[n] = next
-        else 
-            next = sample(1:moraSize, Weights(grammar[str_idxs[n-1], :]))
-            str_idxs[n] = next
+    alphabet: the alphabet of the grammar
+    grammar: the grammar to generate the string from
+    str_len: the length of the string
+    cfg: whether the grammar is context free (only applies to regular grammars)
+    """
+    K = Int(log(length(alphabet), grammar.size[1]))
+    @assert str_len % K == 0 "Can't make strings not divisible by K"
+    @assert str_len % 2 == 0 "String length must be divisible by 2, to construct cfg grammars"
+    @assert grammar_type in ["reg", "cfg_rep", "cfg_mirr", "csg"] "Grammar type must be either regular (reg), context-free with repeated phrases (cfg_rep), context-free with mirrored phrases (cfg_mirr), or context-sensitive (csg)."
+    @assert K == 1 || (grammar_type == "csg" && K > 1) "K must be 1 for regular and context-free grammars and >1 for context-sensitive grammars."
+    
+    kgrams = [join(i) for i in vec(collect(Iterators.product(Iterators.repeated(alphabet, K)...)))] # get all possible kgrams
+
+    alph_size = length(kgrams) # get length of alphabet (or kgram tuples)
+
+    str_idxs = [rand(1:alph_size)] # assign first index to be a random letter in alphabet
+
+    if grammar_type == "cfg_rep" || grammar_type == "cfg_mirr"
+        for _ in 2:div(str_len, 2)
+            next = sample(1:alph_size, Weights(grammar[str_idxs[end], :]))
+            push!(str_idxs, next)
         end
-    end 
-    return str_idxs, where_errors
+        if grammar_type ==  "cfg_rep"
+            if error # such that the only error is the nature of the repeated part, not the between-letter transitions
+                append!(str_idxs, reverse(str_idxs))
+            else
+                append!(str_idxs, str_idxs)
+            end
+        else
+            if error
+                append!(str_idxs, str_idxs)
+            else
+                append!(str_idxs, reverse(str_idxs))
+            end
+        end
+    else
+        for _ in 2:div(str_len, K)
+            if error
+                next = sample(1:alph_size, Weights(err_grammar[str_idxs[end], :]))
+            else 
+                next = sample(1:alph_size, Weights(grammar[str_idxs[end], :]))
+            end
+            push!(str_idxs, next)
+        end
+    end
+    return join(kgrams[str_idxs]), str_idxs
 end
 
 #==================================================================================#
