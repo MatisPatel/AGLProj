@@ -1,5 +1,5 @@
 ## Functions to export
-using Combinatorics, CSV, DataFrames, IterTools, LinearAlgebra, Lux, Logging, MySQL, Random, SHA, StatsBase, YAML
+using Combinatorics, CSV, DataFrames, Flux, IterTools, LinearAlgebra, Logging, MySQL, Random, SHA, StatsBase, YAML
 
 #==================================================================================#
 # 0. General helper functions
