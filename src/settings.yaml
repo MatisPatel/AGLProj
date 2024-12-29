@@ -1,14 +1,14 @@
 db_credentials_secret:
   path: "database_connection.csv" # containing the credentials for database connection
 grammar_parameters:
-  alphabet_length: &alphlength 3 # number of letters in alphabet (i.e., states in adjacency matrix)
+  alphabet_length: &alphlength 4 # number of letters in alphabet (i.e., states in adjacency matrix)
   max_k_grams: &kgrams 3 # maximum number of k-grams to generate
   num_grammars: 100 # number of grammars to generate
   num_attempts: 10 # number of attempts to try to find unique adjacency matrices
   entropy_rounding_precision: 5 # rounding for entropy values
   seed: 2022 # random seed for grammar generation
 string_parameters:
-  string_length: &strlength 6
+  string_length: &strlength 12
   num_strings: 500
   num_errors: &numerrors 1
   seed: 1997 # random seed for string generation
@@ -48,7 +48,7 @@ tables:
       - ["transitionmatrix", "LONGTEXT"]
       - ["transitionmatrixhash", "CHAR(64)"] # hash the transition matrix to identify duplicates
     constraint: "UNIQUE (kgrams, grammartype, transitionmatrixhash)"
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   strings:
     name: "strings"
     columns: 
@@ -59,7 +59,8 @@ tables:
       - ["stringnumberencoding", "VARCHAR(%(x*5)%)", *strlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
       - ["error", "INT NOT NULL"]
       - ["stringid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    constraint: "UNIQUE (grammarid, string)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   models:
     name: "modelatts"
     columns:

@@ -1,5 +1,5 @@
 ## Functions to export
-using Combinatorics, CSV, DataFrames, Flux, IterTools, LinearAlgebra, Logging, MySQL, Random, SHA, StatsBase, YAML
+using Combinatorics, CSV, DataFrames, IterTools, LinearAlgebra, Lux, Logging, MySQL, Random, SHA, StatsBase, YAML
 
 #==================================================================================#
 # 0. General helper functions
@@ -499,8 +499,10 @@ function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, erro
 
     alphabet: the alphabet of the grammar
     grammar: the grammar to generate the string from
+    err_grammar: the inverted adjacency matrix for producing incorrect strings
     str_len: the length of the string
-    cfg: whether the grammar is context free (only applies to regular grammars)
+    grammar_type: which type of grammar is being used to generate grammars
+    error: whether to generate an error string or not
     """
     K = Int(log(length(alphabet), grammar.size[1]))
     @assert str_len % K == 0 "Can't make strings not divisible by K"
@@ -521,13 +523,42 @@ function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, erro
         end
         if grammar_type ==  "cfg_rep"
             if error # such that the only error is the nature of the repeated part, not the between-letter transitions
-                append!(str_idxs, reverse(str_idxs))
+                str_idxs_copy = copy(str_idxs)
+                count_identity = 0
+                for idx in str_idxs_copy
+                    possible_next = findall(x -> x != idx, 1:alph_size)
+                    if sum(grammar[str_idxs[end], possible_next]) == 0
+                        push!(str_idxs, idx)
+                        count_identity = count_identity + 1
+                    else
+                        next = sample(possible_next, Weights(grammar[str_idxs[end], possible_next]))
+                        push!(str_idxs, next)
+                    end
+                    if count_identity == length(str_idxs_copy)
+                        error("Error string cannot be found for this string")
+                    end
+                end
             else
                 append!(str_idxs, str_idxs)
             end
         else
             if error
-                append!(str_idxs, str_idxs)
+                str_idxs_copy = copy(str_idxs)
+                str_idxs_copy = reverse(str_idxs_copy)
+                count_identity = 0
+                for idx in str_idxs_copy
+                    possible_next = findall(x -> x != idx, 1:alph_size)
+                    if sum(grammar[str_idxs[end], possible_next]) == 0
+                        push!(str_idxs, idx)
+                        count_identity = count_identity + 1
+                    else
+                        next = sample(possible_next, Weights(grammar[str_idxs[end], possible_next]))
+                        push!(str_idxs, next)
+                    end
+                    if count_identity == length(str_idxs_copy)
+                        error("Error string cannot be found for this string")
+                    end
+                end
             else
                 append!(str_idxs, reverse(str_idxs))
             end
