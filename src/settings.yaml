@@ -1,9 +1,9 @@
 db_credentials_secret:
   path: "database_connection.csv" # containing the credentials for database connection
 grammar_parameters:
-  alphabet_length: &alphlength 4 # number of letters in alphabet (i.e., states in adjacency matrix)
+  alphabet_length: &alphlength 4 # number of letters in alphabet (i.e., states in adjacency matrix). Going any higher than this produces prohibitively large kgram grammars for K=3.
   max_k_grams: &kgrams 3 # maximum number of k-grams to generate
-  num_grammars: 100 # number of grammars to generate
+  num_grammars: 25 # number of grammars to generate
   num_attempts: 10 # number of attempts to try to find unique adjacency matrices
   entropy_rounding_precision: 5 # rounding for entropy values
   seed: 2022 # random seed for grammar generation
@@ -13,16 +13,20 @@ string_parameters:
   num_errors: &numerrors 1
   seed: 1997 # random seed for string generation
 model_parameters:
-  min_num_neurons: 8
+  min_num_neurons: 32
   max_num_neurons: 512
-  neuron_increments: 4
+  neuron_increments: 32
   min_num_layers: 1
-  max_num_layers: 20
-  max_num_laminations: 8
+  max_num_layers: 5
+  max_num_laminations: 2
   reservoir_scaling_factor: 4
   num_errors: *numerrors
   alphabet_length: *alphlength
   string_length: *strlength
+  n_epochs: 100 # number of epochs to train for
+  batch_size: 100 # size of batches during training
+  prop_test: 0.3 # proportion of strings to hold back for testing
+  opt: "Optimisers.Momentum(0.01f0, 0.95f0)" # optimiser to use for training
   seed: 1234
 tables:
   grammars:
@@ -75,7 +79,7 @@ tables:
       - ["reservoir", "BOOL"]
       - ["run", "BOOL"]
     constraint: "UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool, reservoir)"
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   modeloutputs:
     name: "modeloutputs"
     columns:
@@ -87,7 +91,6 @@ tables:
     - ["trainteststring", "VARCHAR(200)"]
     - ["pretrainprobs", "FLOAT(32)"]
     - ["posttrainprobs", "FLOAT(32)"]
-    - ["epochs", "INT"]
     constraint: "UNIQUE (stringid, modelid)"
     delete_and_rebuild: true # only if you want to rerun the database from scratch 
   accuracieslosses:
@@ -101,6 +104,5 @@ tables:
     - ["loss", "FLOAT NOT NULL"]
     - ["trainbrier", "FLOAT NOT NULL"]
     - ["testbrier", "FLOAT NOT NULL"]
-    - ["throttle", "FLOAT NOT NULL"]
     constraint: "UNIQUE (modelid, grammarid, epoch, batch)"
     delete_and_rebuild: true # only if you want to rerun the database from scratch 

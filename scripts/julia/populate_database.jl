@@ -17,7 +17,9 @@
 using DrWatson
 @quickactivate "AGLProj"
 
-include(srcdir("utils.jl"))
+include(srcdir("database.jl"))
+include(srcdir("grammars.jl"))
+include(srcdir("models.jl"))
 
 # Import settings
 settings = load_yaml("settings.yaml")
@@ -155,10 +157,10 @@ col_names = [x[1] for x in settings["tables"]["models"]["columns"][2:end]]
 for neurs in min_num_neurons:neuron_increments:max_num_neurons
     for lays in min_num_layers:max_num_layers
         for lams in 1:max_num_laminations
-            for ipool in [true, false]
-                for opool in [true, false]
+            for ipool in [false] # [true, false]
+                for opool in [false] # [true, false]
                     for rec in [true, false]
-                        for res in [true, false]
+                        for res in [false] # [true, false]
                             model = build_model(neurs, lays, lams, rec, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor)
                             if model != false
                                 value_list = vcat(neurs, lays, lams, rec, ipool, opool, res, false)
