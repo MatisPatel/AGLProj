@@ -1,0 +1,108 @@
+db_credentials_secret:
+  path: "database_connection.csv" # containing the credentials for database connection
+grammar_parameters:
+  alphabet_length: &alphlength 4 # number of letters in alphabet (i.e., states in adjacency matrix). Going any higher than this produces prohibitively large kgram grammars for K=3.
+  max_k_grams: &kgrams 3 # maximum number of k-grams to generate
+  num_grammars: 25 # number of grammars to generate
+  num_attempts: 10 # number of attempts to try to find unique adjacency matrices
+  entropy_rounding_precision: 5 # rounding for entropy values
+  seed: 2022 # random seed for grammar generation
+string_parameters:
+  string_length: &strlength 12
+  num_strings: 500
+  num_errors: &numerrors 1
+  seed: 1997 # random seed for string generation
+model_parameters:
+  min_num_neurons: 32
+  max_num_neurons: 512
+  neuron_increments: 32
+  min_num_layers: 1
+  max_num_layers: 5
+  max_num_laminations: 2
+  reservoir_scaling_factor: 4
+  num_errors: *numerrors
+  alphabet_length: *alphlength
+  string_length: *strlength
+  n_epochs: 100 # number of epochs to train for
+  batch_size: 100 # size of batches during training
+  prop_test: 0.3 # proportion of strings to hold back for testing
+  opt: "Optimisers.Momentum(0.01f0, 0.95f0)" # optimiser to use for training
+  seed: 1234
+tables:
+  grammars:
+    name: "grammars"
+    columns: 
+    # Preserve order of columns
+      - ["grammarid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
+      - ["kgrams", "INT NOT NULL"]
+      - ["grammartype", "VARCHAR(20) NOT NULL"]
+      - ["connections", "INT NOT NULL"]
+      - ["loops", "INT NOT NULL"]
+      - ["topentropy", "FLOAT NOT NULL"]
+      - ["adjmatrixrealentropy", "FLOAT"]
+      - ["adjmatriximagentropy", "FLOAT"]
+      - ["adjmatrixmodentropy", "FLOAT"]
+      - ["indlaplacianrealentropy", "FLOAT"]
+      - ["indlaplacianimagentropy", "FLOAT"]
+      - ["indlaplacianmodentropy", "FLOAT"]
+      - ["slesslaplacianrealentropy", "FLOAT"]
+      - ["slesslaplacianimagentropy", "FLOAT"]
+      - ["slesslaplacianmodentropy", "FLOAT"]
+      - ["alphabetlength", "INT"]
+      - ["transitionmatrix", "LONGTEXT"]
+      - ["transitionmatrixhash", "CHAR(64)"] # hash the transition matrix to identify duplicates
+    constraint: "UNIQUE (kgrams, grammartype, transitionmatrixhash)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  strings:
+    name: "strings"
+    columns: 
+    # Preserve order of columns
+      - ["grammarid", "INT NOT NULL"]
+      - ["string", "VARCHAR(%(x+5)%) NOT NULL", *strlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
+      - ["stringlength", "INT NOT NULL"]
+      - ["stringnumberencoding", "VARCHAR(%(x*5)%)", *strlength] # %*% denotes an expression to be evaluated, where x is the third element of the matrix, indexed from elsewhere in this file.
+      - ["error", "INT NOT NULL"]
+      - ["stringid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
+    constraint: "UNIQUE (grammarid, string)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  models:
+    name: "modelatts"
+    columns:
+    # Preserve order of columns
+      - ["modelid", "INT AUTO_INCREMENT PRIMARY KEY"]
+      - ["neurons", "INT"] 
+      - ["layers", "INT"]
+      - ["laminations", "INT"]
+      - ["recurrence", "BOOL"]
+      - ["inpool", "BOOL"]
+      - ["outpool", "BOOL"]
+      - ["reservoir", "BOOL"]
+      - ["run", "BOOL"]
+    constraint: "UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool, reservoir)"
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
+  modeloutputs:
+    name: "modeloutputs"
+    columns:
+    # Preserve order of columns
+    - ["traininginstanceid", "INT AUTO_INCREMENT PRIMARY KEY"]
+    - ["grammarid", "INT NOT NULL"]
+    - ["stringid", "INT NOT NULL"]
+    - ["modelid", "INT NOT NULL"]
+    - ["trainteststring", "VARCHAR(200)"]
+    - ["pretrainprobs", "FLOAT(32)"]
+    - ["posttrainprobs", "FLOAT(32)"]
+    constraint: "UNIQUE (stringid, modelid)"
+    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+  accuracieslosses:
+    name: "accuracieslosses"
+    columns:
+    # Preserve order of columns
+    - ["modelid", "INT NOT NULL"]
+    - ["grammarid", "INT NOT NULL"]
+    - ["epoch", "INT NOT NULL"]
+    - ["batch", "INT NOT NULL"]
+    - ["loss", "FLOAT NOT NULL"]
+    - ["trainbrier", "FLOAT NOT NULL"]
+    - ["testbrier", "FLOAT NOT NULL"]
+    constraint: "UNIQUE (modelid, grammarid, epoch, batch)"
+    delete_and_rebuild: true # only if you want to rerun the database from scratch 
