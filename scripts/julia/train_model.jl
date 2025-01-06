@@ -14,7 +14,7 @@
 # 0. Preamble
 
 using Distributed
-n_procs = 2
+n_procs = 50
 addprocs(n_procs-1)
 
 @everywhere begin
@@ -74,6 +74,7 @@ acc_col_names = [x[1] for x in settings["tables"]["accuracieslosses"]["columns"]
 for gn in 1:nrow(grammars_from_db)
     if length(model_list) > 0
         grammar_id = grammars_from_db.grammarid[gn]
+        println("Commencing training on grammar ", grammar_id)
         grammar_query = string("SELECT * FROM strings WHERE grammarid = $(grammar_id) AND stringlength = $(string_length);") 
         training_data = DBInterface.execute(con, grammar_query) |> DataFrame |> shuffle # get the strings for the ith grammar
         
@@ -92,6 +93,7 @@ for gn in 1:nrow(grammars_from_db)
                 (next_output, next_acc_loss)
             end
 
+            println("Training complete for batch of $(length(results)) models. Pushing to DB...")
             output_list = [x[1] for x in results if !isnothing(x)]
             acc_loss_list = [x[2] for x in results if !isnothing(x)]
             model_outputs = vcat(output_list...)
@@ -116,11 +118,15 @@ for gn in 1:nrow(grammars_from_db)
                     DBInterface.execute(con, query) # push to DB 
                 end
             end
-            for id in unique(model_outputs.modelid)
-                query = "UPDATE $(settings["tables"]["models"]["name"]) SET $(settings["tables"]["models"]["columns"][end][1]) = TRUE \
-                        WHERE $(settings["tables"]["models"]["columns"][1][1]) = $(id);"
-                DBInterface.execute(con, query)
+            if gn == nrow(grammars_from_db)
+                for id in unique(model_outputs.modelid)
+                    query = "UPDATE $(settings["tables"]["models"]["name"]) SET $(settings["tables"]["models"]["columns"][end][1]) = TRUE \
+                            WHERE $(settings["tables"]["models"]["columns"][1][1]) = $(id);"
+                    DBInterface.execute(con, query)
+                end
+                println("Run status updated.")
             end
+            println("Data pushed to DB.")
         end
     else
         println("All models have been evaluated on grammar $(grammars_from_db.grammarid[gn]). Moving on...")

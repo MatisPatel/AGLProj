@@ -1,5 +1,5 @@
 ## Functions to export
-using Combinatorics, CSV, DataFrames, IterTools, LinearAlgebra, Logging, Random, StatsBase, YAML
+using Combinatorics, CSV, DataFrames, IterTools, LinearAlgebra, Logging, Random, SHA, StatsBase, YAML
 
 #==================================================================================#
 # Grammar functions
