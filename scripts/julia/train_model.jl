@@ -40,6 +40,18 @@ con = database_connect(settings["db_credentials_secret"]["path"])
 # Load grammars
 grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame
 
+# Delete any existing outputs from failed runs
+
+acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) INNER JOIN $(settings["tables"]["grammars"]["name"]) g ON \
+                    t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
+                    g.$(settings["tables"]["grammars"]["columns"][1][end]) = FALSE;"
+DBInterface.execute(con, acc_losses_query)
+
+outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) INNER JOIN $(settings["tables"]["grammars"]["name"]) g ON \
+                    t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
+                    g.$(settings["tables"]["grammars"]["columns"][1][end]) = FALSE;"
+DBInterface.execute(con, outputs_query)
+
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]);") |> DataFrame
 
