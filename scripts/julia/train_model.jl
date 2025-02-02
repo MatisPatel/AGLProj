@@ -38,7 +38,7 @@ initialise_db("settings.yaml")
 con = database_connect(settings["db_credentials_secret"]["path"])
 
 # Load grammars
-grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]);") |> DataFrame
+grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame
 
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]);") |> DataFrame
@@ -49,21 +49,19 @@ model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["mode
 
 model_list = []
 for row in 1:nrow(model_table) # quicker to do on one worker
-    if !Bool(model_table.run[row])
-        if row % 1000 == 0
-            println("Model ID: ", model_table.modelid[row], " loaded.")
-        end
-        model_chain = build_model(model_table.neurons[row],
-                                model_table.layers[row],
-                                model_table.laminations[row],
-                                Bool(model_table.recurrence[row]),
-                                Bool(model_table.inpool[row]),
-                                Bool(model_table.outpool[row]),
-                                num_errors, string_length, alphabet_length,
-                                Bool(model_table.reservoir[row]), reservoir_scaling_factor)
-        
-        push!(model_list, (model_chain, model_table.modelid[row]))
+    if row % 100 == 0
+        println("Model ID: ", model_table.modelid[row], " loaded.")
     end
+    model_chain = build_model(model_table.neurons[row],
+                            model_table.layers[row],
+                            model_table.laminations[row],
+                            Bool(model_table.recurrence[row]),
+                            Bool(model_table.inpool[row]),
+                            Bool(model_table.outpool[row]),
+                            num_errors, string_length, alphabet_length,
+                            Bool(model_table.reservoir[row]), reservoir_scaling_factor)
+        
+    push!(model_list, (model_chain, model_table.modelid[row]))
 end
 
 ### Train
@@ -71,8 +69,8 @@ end
 output_col_names = [x[1] for x in settings["tables"]["modeloutputs"]["columns"][2:end]]
 acc_col_names = [x[1] for x in settings["tables"]["accuracieslosses"]["columns"][1:end]]
 
-for gn in 1:nrow(grammars_from_db)
-    if length(model_list) > 0
+if nrow(grammars_from_db) > 0
+    for gn in 1:nrow(grammars_from_db)
         grammar_id = grammars_from_db.grammarid[gn]
         println("Commencing training on grammar ", grammar_id)
         grammar_query = string("SELECT * FROM strings WHERE grammarid = $(grammar_id) AND stringlength = $(string_length);") 
@@ -118,18 +116,14 @@ for gn in 1:nrow(grammars_from_db)
                     DBInterface.execute(con, query) # push to DB 
                 end
             end
-            if gn == nrow(grammars_from_db)
-                for id in unique(model_outputs.modelid)
-                    query = "UPDATE $(settings["tables"]["models"]["name"]) SET $(settings["tables"]["models"]["columns"][end][1]) = TRUE \
-                            WHERE $(settings["tables"]["models"]["columns"][1][1]) = $(id);"
-                    DBInterface.execute(con, query)
-                end
-                println("Run status updated.")
-            end
             println("Data pushed to DB.")
         end
-    else
-        println("All models have been evaluated on grammar $(grammars_from_db.grammarid[gn]). Moving on...")
+        query = "UPDATE $(settings["tables"]["grammars"]["name"]) SET $(settings["tables"]["grammars"]["columns"][end][1]) = TRUE \
+                WHERE $(settings["tables"]["grammars"]["columns"][1][1]) = $(grammar_id);"
+        DBInterface.execute(con, query)
+        println("Run status updated.")
     end
+else
+    println("All grammars have been trained on. Closing...")
 end
 DBInterface.close!(con)

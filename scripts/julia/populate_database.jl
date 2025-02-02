@@ -74,7 +74,7 @@ for gt in grammar_types
 
                         grammar_hash = bytes2hex(sha256(string(grammar_dict["grammar"])))
 
-                        entropy_value_list = vcat(k, "\"$(grammar_type)\"", num_conn, Int(loops), entropy_list, alphabet_length, "\"$(grammar_dict["grammar"])\"", "\"$(grammar_hash)\"")
+                        entropy_value_list = vcat(k, "\"$(grammar_type)\"", num_conn, Int(loops), entropy_list, alphabet_length, "\"$(grammar_dict["grammar"])\"", "\"$(grammar_hash)\"", false)
                         col_names = [x[1] for x in settings["tables"]["grammars"]["columns"][2:end]]
                         query = build_insert_query(settings["tables"]["grammars"]["name"], col_names, entropy_value_list)
 
@@ -163,7 +163,7 @@ for neurs in min_num_neurons:neuron_increments:max_num_neurons
                         for res in [false] # [true, false]
                             model = build_model(neurs, lays, lams, rec, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor)
                             if model != false
-                                value_list = vcat(neurs, lays, lams, rec, ipool, opool, res, false)
+                                value_list = vcat(neurs, lays, lams, rec, ipool, opool, res)
                                 query = build_insert_query(settings["tables"]["models"]["name"], col_names, value_list)
                                 try
                                     DBInterface.execute(con, query)

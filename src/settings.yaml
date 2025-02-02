@@ -51,6 +51,7 @@ tables:
       - ["alphabetlength", "INT"]
       - ["transitionmatrix", "LONGTEXT"]
       - ["transitionmatrixhash", "CHAR(64)"] # hash the transition matrix to identify duplicates
+      - ["run", "BOOL"]
     constraint: "UNIQUE (kgrams, grammartype, transitionmatrixhash)"
     delete_and_rebuild: false # only if you want to rerun the database from scratch 
   strings:
@@ -77,7 +78,6 @@ tables:
       - ["inpool", "BOOL"]
       - ["outpool", "BOOL"]
       - ["reservoir", "BOOL"]
-      - ["run", "BOOL"]
     constraint: "UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool, reservoir)"
     delete_and_rebuild: false # only if you want to rerun the database from scratch 
   modeloutputs:
