@@ -41,16 +41,19 @@ con = database_connect(settings["db_credentials_secret"]["path"])
 grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame
 
 # Delete any existing outputs from failed runs
-
-acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) INNER JOIN $(settings["tables"]["grammars"]["name"]) g ON \
+println("Deleting any partially completed runs from relevant tables")
+acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
+                    $(settings["tables"]["grammars"]["name"]) g ON \
                     t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
-                    g.$(settings["tables"]["grammars"]["columns"][1][end]) = FALSE;"
+                    g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
 DBInterface.execute(con, acc_losses_query)
 
-outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) INNER JOIN $(settings["tables"]["grammars"]["name"]) g ON \
-                    t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
-                    g.$(settings["tables"]["grammars"]["columns"][1][end]) = FALSE;"
+outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
+                $(settings["tables"]["grammars"]["name"]) g ON \
+                t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
+                g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
 DBInterface.execute(con, outputs_query)
+println("Done! Loading models...")
 
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]);") |> DataFrame
@@ -88,7 +91,7 @@ if nrow(grammars_from_db) > 0
         grammar_query = string("SELECT * FROM strings WHERE grammarid = $(grammar_id) AND stringlength = $(string_length);") 
         training_data = DBInterface.execute(con, grammar_query) |> DataFrame |> shuffle # get the strings for the ith grammar
         
-        for models in collect(Iterators.partition(model_list, n_procs*3)) # batch up the models 
+        for models in collect(Iterators.partition(model_list, n_procs*6)) # batch up the models 
             results = @distributed (vcat) for m in models
                 model = m[1]
                 model_id = m[2]
