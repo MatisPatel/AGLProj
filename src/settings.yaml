@@ -91,7 +91,7 @@ tables:
     - ["trainteststring", "VARCHAR(200)"]
     - ["pretrainprobs", "FLOAT(32)"]
     - ["posttrainprobs", "FLOAT(32)"]
-    constraint: "UNIQUE (stringid, modelid)"
+    # constraint: "UNIQUE (stringid, modelid)"
     delete_and_rebuild: false # only if you want to rerun the database from scratch 
   accuracieslosses:
     name: "accuracieslosses"
@@ -104,5 +104,5 @@ tables:
     - ["loss", "FLOAT NOT NULL"]
     - ["trainbrier", "FLOAT NOT NULL"]
     - ["testbrier", "FLOAT NOT NULL"]
-    constraint: "UNIQUE (modelid, grammarid, epoch, batch)"
+    # constraint: "UNIQUE (modelid, grammarid, epoch, batch)"
     delete_and_rebuild: false # only if you want to rerun the database from scratch 

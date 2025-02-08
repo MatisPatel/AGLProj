@@ -314,3 +314,17 @@ function build_insert_query(tab_name, col_names, values)
         error("Number of columns and number of values do not match.")
     end
 end
+
+function build_batch_insert_query(tab_name, col_names, value_dataframe)
+    if length(col_names) == size(value_dataframe)[2]
+        values = join([join(collect(value_dataframe[i, :]), ", ") for i in 1:size(value_dataframe)[1]], "), (")
+        query = """INSERT INTO $(tab_name) (\
+                    $(join(col_names, ", "))\
+                    ) VALUES \
+                    ($(values));\
+                    """
+        return query
+    else
+        error("Number of columns and number of values do not match.")
+    end
+end
