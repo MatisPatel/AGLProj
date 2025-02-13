@@ -38,7 +38,7 @@ initialise_db("settings.yaml")
 con = database_connect(settings["db_credentials_secret"]["path"])
 
 # Load grammars
-grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame
+grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame |> shuffle
 
 # Delete any existing outputs from failed runs
 println("Deleting any partially completed runs from relevant tables")
