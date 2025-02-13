@@ -1,4 +1,4 @@
-############################################# Full pipeline for grammars ########################################################
+############################################# Full pipeline for model training ###################################################
 # Author: M. Patel, K. Voudouris
 # Project Title: AGLProj
 # Julia Version: 1.8.2
