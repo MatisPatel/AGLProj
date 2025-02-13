@@ -27,9 +27,6 @@ load_parameters(settings, "model_parameters")
 # Connect to database
 con = database_connect(settings["db_credentials_secret"]["path"])
 
-# Set default plot size
-set_default_plot_size(6inch, 4inch)
-
 #################################################################################################################################
 # 1. Plotting and Analysis
 
@@ -55,7 +52,12 @@ post_training_data = DBInterface.execute(con, post_training_data_query) |> DataF
 
 transform!(post_training_data, [:error, :posttrainprobs] => ((error, posttrainprobs) -> sqrt.((error .- posttrainprobs) .^ 2)) => :root_squared_error)
 
-test = post_training_data[1:10, :]
+CSV.write("./analysis/data/post_training_data.csv", post_training_data) # Save data to CSV to use on machine with GUI
+
+DataFrame(CSV.File("./analysis/data/post_training_data.csv")) # Load data from CSV (must be downloaded manually)
+
+# Set default plot size
+set_default_plot_size(6inch, 4inch)
 
 p = plot(post_training_data, x = :grammartype, y = :root_squared_error,
     #  color = :origin, 
