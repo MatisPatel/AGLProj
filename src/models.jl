@@ -336,7 +336,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
             if recurrence
                 if gru
                     model = RNNCellClassifier(
-                        Chain(Lux.Experimental.freeze(RNNCell(length_alphabet => input_dims, relu)),
+                        Chain(Lux.Experimental.freeze(GRUCell(length_alphabet => input_dims)),
                         Recurrence(GRUCell(input_dims => sum([splits[1] for splits in layer_splits])), return_sequence=true),
                         Parallel(vcat, branches...),
                         Recurrence(GRUCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits])), return_sequence=false),

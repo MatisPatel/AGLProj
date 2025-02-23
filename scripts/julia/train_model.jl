@@ -142,4 +142,11 @@ if nrow(grammars_from_db) > 0
 else
     println("All grammars have been trained on. Closing...")
 end
+
+# Update model run status
+for m in model_list
+    query = "UPDATE $(settings["tables"]["models"]["name"]) SET run = TRUE WHERE modelid = $(m[2]);"
+    DBInterface.execute(con, query)
+end
+
 DBInterface.close!(con)
