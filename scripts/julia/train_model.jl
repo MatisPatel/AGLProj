@@ -44,14 +44,20 @@ grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"][
 println("Deleting any partially completed runs from relevant tables")
 acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
                     $(settings["tables"]["grammars"]["name"]) g ON \
-                    t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
-                    g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
+                    t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+                    INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+                    t.$(settings["tables"]["accuracieslosses"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+                    g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+                    m.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
 DBInterface.execute(con, acc_losses_query)
 
 outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
                 $(settings["tables"]["grammars"]["name"]) g ON \
-                t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) WHERE \
-                g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
+                t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+                INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+                t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+                g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+                m.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
 DBInterface.execute(con, outputs_query)
 println("Done! Loading models...")
 
