@@ -18,7 +18,7 @@ model_parameters:
   neuron_increments: 32
   min_num_layers: 1
   max_num_layers: 5
-  max_num_laminations: 2
+  max_num_laminations: 3
   reservoir_scaling_factor: 4
   num_errors: *numerrors
   alphabet_length: *alphlength
