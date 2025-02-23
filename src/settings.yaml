@@ -75,10 +75,12 @@ tables:
       - ["layers", "INT"]
       - ["laminations", "INT"]
       - ["recurrence", "BOOL"]
+      - ["gru", "BOOL"]
       - ["inpool", "BOOL"]
       - ["outpool", "BOOL"]
       - ["reservoir", "BOOL"]
-    constraint: "UNIQUE (neurons, layers, laminations, recurrence, inpool, outpool, reservoir)"
+      - ["run", "BOOL"]
+    constraint: "UNIQUE (neurons, layers, laminations, recurrence, gru, inpool, outpool, reservoir)"
     delete_and_rebuild: false # only if you want to rerun the database from scratch 
   modeloutputs:
     name: "modeloutputs"

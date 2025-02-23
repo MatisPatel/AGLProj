@@ -160,15 +160,18 @@ for neurs in min_num_neurons:neuron_increments:max_num_neurons
             for ipool in [false] # [true, false]
                 for opool in [false] # [true, false]
                     for rec in [true, false]
-                        for res in [false] # [true, false]
-                            model = build_model(neurs, lays, lams, rec, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor)
-                            if model != false
-                                value_list = vcat(neurs, lays, lams, rec, ipool, opool, res)
-                                query = build_insert_query(settings["tables"]["models"]["name"], col_names, value_list)
-                                try
-                                    DBInterface.execute(con, query)
-                                catch
-                                    continue
+                        for gru in [true, false]
+                            for res in [false] # [true, false]
+                                println("Generating model with $(neurs) neurons, $(lays) layers, $(lams) laminations, recurrent = $(rec), gru = $(gru), input pooling = $(ipool), output pooling = $(opool), reservoir = $(res)")
+                                model = build_model(neurs, lays, lams, rec, gru, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor)
+                                if model != false
+                                    value_list = vcat(neurs, lays, lams, rec, gru, ipool, opool, res, false)
+                                    query = build_insert_query(settings["tables"]["models"]["name"], col_names, value_list)
+                                    try
+                                        DBInterface.execute(con, query)
+                                    catch
+                                        continue
+                                    end
                                 end
                             end
                         end

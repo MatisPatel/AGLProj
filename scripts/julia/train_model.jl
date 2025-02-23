@@ -56,7 +56,7 @@ DBInterface.execute(con, outputs_query)
 println("Done! Loading models...")
 
 # Load models
-model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]);") |> DataFrame
+model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]) WHERE run = FALSE;") |> DataFrame
 
 #############################################################################################################
 
@@ -71,6 +71,7 @@ for row in 1:nrow(model_table) # quicker to do on one worker
                             model_table.layers[row],
                             model_table.laminations[row],
                             Bool(model_table.recurrence[row]),
+                            Bool(model_table.gru[row]),
                             Bool(model_table.inpool[row]),
                             Bool(model_table.outpool[row]),
                             num_errors, string_length, alphabet_length,
