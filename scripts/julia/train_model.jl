@@ -40,29 +40,45 @@ con = database_connect(settings["db_credentials_secret"]["path"])
 # Load grammars
 grammars_from_db = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["grammars"]["name"]) WHERE $(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;") |> DataFrame |> shuffle
 
-# Delete any existing outputs from failed runs
-println("Deleting any partially completed runs from relevant tables")
-acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
-                    $(settings["tables"]["grammars"]["name"]) g ON \
-                    t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
-                    INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
-                    t.$(settings["tables"]["accuracieslosses"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
-                    g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
-                    m.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
-DBInterface.execute(con, acc_losses_query)
-
-outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
-                $(settings["tables"]["grammars"]["name"]) g ON \
-                t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
-                INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
-                t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
-                g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
-                m.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE;"
-DBInterface.execute(con, outputs_query)
-println("Done! Loading models...")
+println("Loading models...")
 
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]) WHERE run = FALSE;") |> DataFrame
+Delete any existing outputs from failed runs
+println("Deleting any partially completed runs from relevant tables")
+println("Deleting from $(settings["tables"]["accuracieslosses"]["name"])")
+
+for i in 1:nrow(model_table)
+	model_id = table_model.modelid[i]
+	acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
+		            $(settings["tables"]["grammars"]["name"]) g ON \
+		            t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+		            INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+		            t.$(settings["tables"]["accuracieslosses"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+		            g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+		            m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
+		            m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
+
+	DBInterface.execute(con, acc_losses_query)
+end
+
+println("Deleting from $(settings["tables"]["modeloutputs"]["name"])")
+
+for i in 1:nrow(model_table)
+	model_id = model_table.modelid[i]
+	outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
+		        $(settings["tables"]["grammars"]["name"]) g ON \
+		        t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+		        INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+		        t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+		        g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+		        m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
+		        m.$settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
+
+	DBInterface.execute(con, outputs_query)
+end
+
+
 
 #############################################################################################################
 
