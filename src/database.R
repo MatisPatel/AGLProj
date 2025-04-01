@@ -4,8 +4,8 @@
 #" @export
 
 database.connect <- function(csv.name, dbPort = 3306){
-    here::i_am("src/utils.R")
-    database_connection <- read.csv(paste0("./src/", csv.name))
+    here::i_am("src/database.R")
+    database_connection <- utils::read.csv(paste0("./src/", csv.name))
 
     dbName = database_connection$Value[1]
     dbUsername = database_connection$Value[2]
