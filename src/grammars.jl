@@ -121,6 +121,28 @@ function generate_grammar(N::Int, edges::Int, K::Int)
     return output_dict
 end
 
+
+# Generate tensor grammar ignore transition rules
+function generate_tensor_grammar(N::Int, edges::Int, Rank::Int)
+    """ 
+    Function to generate an adjacency grammar, ignoring connectedness and loops. 
+
+    N is the alphabet size 
+    edges are the num of edges max edges is (N^K)^2
+    Rank is the rank of the tensor. 1 is regular grammar, 2+ is a context-sensitive grammar because the validity of transitions between two letters depends on whether they are in a tuple or between two tuples.
+    """
+    if edges > (N^Rank)
+        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    end
+
+    grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], (N^Rank) - edges))), tuple([N for x in 1:Rank]...))
+
+    output_dict = Dict(
+        "grammar"=>grammar
+    )
+    return output_dict
+end
+
 # Grammar Entropy function - get the entropy of the grammar as defined by Sun et al. (2021)
 function compute_eigenvalue_entropy(eigenvalues)
     # Following Sun et al. (2021) https://doi.org/10.1371/journal.pone.0251993
