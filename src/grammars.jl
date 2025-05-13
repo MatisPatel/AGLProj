@@ -129,10 +129,11 @@ function generate_tensor_grammar(N::Int, edges::Int, Rank::Int)
 
     N is the alphabet size 
     edges are the num of edges max edges is (N^K)^2
-    Rank is the rank of the tensor. 1 is regular grammar, 2+ is a context-sensitive grammar because the validity of transitions between two letters depends on whether they are in a tuple or between two tuples.
+    Rank is the rank of the tensor. first two dims are the transitions within a context. dims 3 onwards determine the context. 
+    So a rank 3 tensor has a two character context and a rank 4 tensor a three character context etc. 
     """
-    if edges > (N^Rank)
-        return "ERROR: Edges exceed the maximum possible, check edges is less than (N^K)^2"
+    if edges > N^Rank
+        return "ERROR: Edges exceed the maximum possible, check edges is less than N^Rank"
     end
 
     grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], (N^Rank) - edges))), tuple([N for x in 1:Rank]...))
@@ -220,8 +221,8 @@ function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, erro
     K = Int(log(length(alphabet), grammar.size[1]))
     @assert str_len % K == 0 "Can't make strings not divisible by K"
     @assert str_len % 2 == 0 "String length must be divisible by 2, to construct cfg grammars"
-    @assert grammar_type in ["reg", "cfg_rep", "cfg_mirr", "csg"] "Grammar type must be either regular (reg), context-free with repeated phrases (cfg_rep), context-free with mirrored phrases (cfg_mirr), or context-sensitive (csg)."
-    @assert K == 1 || (grammar_type == "csg" && K > 1) "K must be 1 for regular and context-free grammars and >1 for context-sensitive grammars."
+    @assert grammar_type in ["reg", "cfg_rep", "cfg_mirr", "csg", "t_csg"] "Grammar type must be either regular (reg), context-free with repeated phrases (cfg_rep), context-free with mirrored phrases (cfg_mirr), or context-sensitive (csg), or tensor context-sensitive (t_csg)."
+    @assert (grammar_type == "t_csg" && K == 1) || (grammar_type == "csg" && K > 1) "K must be 1 for tensor context sensitive and regular and context-free grammars and >1 for context-sensitive grammars."
     
     kgrams = [join(i) for i in vec(collect(Iterators.product(Iterators.repeated(alphabet, K)...)))] # get all possible kgrams
 
@@ -229,7 +230,28 @@ function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, erro
 
     str_idxs = [rand(1:alph_size)] # assign first index to be a random letter in alphabet
 
-    if grammar_type == "cfg_rep" || grammar_type == "cfg_mirr"
+    if grammar_type == "t_csg"
+        for i in 2:div(str_len, K)
+            string_idxs = zeros(Int, str_len)
+            # what is the context length?
+            context = length(grammar.size) - 1
+            # make a valid context of that length 
+            valid = false
+            while !valid
+                context_idxs = rand(1:alph_size, context)
+                if sum(grammar[:, reverse(context_idxs)...]) > 0
+                    valid = true
+                end
+            end
+            # store that context as the string start
+            string_idxs[1:context] = context_idxs
+            # now continue to generate the rest of the string
+            for i in context+1:str_len
+                context_idxs = string_idxs[i-context:i-1]
+                string_idxs[i] = sample(1:alph_size, Weights(grammar[:, reverse(context_idxs)...]))
+            end
+        end
+    elseif grammar_type == "cfg_rep" || grammar_type == "cfg_mirr"
         for _ in 2:div(str_len, 2)
             next = sample(1:alph_size, Weights(grammar[str_idxs[end], :]))
             push!(str_idxs, next)
@@ -288,3 +310,4 @@ function make_string(alphabet, grammar, err_grammar, str_len, grammar_type, erro
     end
     return join(kgrams[str_idxs]), str_idxs
 end
+
