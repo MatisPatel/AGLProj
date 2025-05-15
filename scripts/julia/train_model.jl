@@ -44,7 +44,7 @@ println("Loading models...")
 
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]) WHERE run = FALSE;") |> DataFrame
-Delete any existing outputs from failed runs
+# Delete any existing outputs from failed runs
 println("Deleting any partially completed runs from relevant tables")
 println("Deleting from $(settings["tables"]["accuracieslosses"]["name"])")
 
@@ -73,7 +73,7 @@ for i in 1:nrow(model_table)
 		        t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
 		        g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
 		        m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
-		        m.$settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
+		        m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
 
 	DBInterface.execute(con, outputs_query)
 end

@@ -14,7 +14,6 @@
 
 using DrWatson, Gadfly
 quickactivate(".", "AGLProj")
-include(srcdir("database.jl"))
 
 # Import settings
 settings = load_yaml("settings.yaml")
@@ -31,6 +30,7 @@ println("Press 2 for a local machine, on which the data are stored in local CSV 
 machine = readline()
 if machine == "1"
     headless = true
+    include(srcdir("database.jl"))
     println("You are using a headless remote server.")
 elseif machine == "2"
     headless = false
@@ -73,16 +73,14 @@ if headless
 
     CSV.write("./analysis/data/post_training_data.csv", post_training_data) # Save data to CSV to use on machine with GUI
 else
-    DataFrame(CSV.File("./analysis/data/post_training_data.csv")) # Load data from CSV (must be downloaded manually)
+    post_training_data = DataFrame(CSV.File("./analysis/data/post_training_data.csv")) # Load data from CSV (must be downloaded manually)
 
     # Set default plot size
     set_default_plot_size(6inch, 4inch)
 
-    p = plot(post_training_data, x = :grammartype, y = :root_squared_error,
-        #  color = :origin, 
-        #  #size = :weight, 
-        #  alpha = [0.5], 
-        Geom.point,
+    p = plot(post_training_data, xgroup=:recurrence, 
+        x = :grammartype, y = :root_squared_error, color=:variable,
+        Geom.subplot_grid(Geom.point),
         Stat.x_jitter(range=0.4),
         Scale.x_discrete,
         Theme(background_color = "white"),

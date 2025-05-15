@@ -24,7 +24,14 @@ AGLModel = Union{RNNCellClassifier,Chain}
 function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, input_pool, output_pool, num_classes, length_strings, length_alphabet, reservoir, reservoir_scaling, verbose=false)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
     @assert (num_laminations >= 1) "Number of laminations must be greater than or equal to 1 (single lamination is just a densely connected network)."
-    @assert (if gru: recurrence == true else true end) "GRU can only be used if recurrence = true."
+
+    if gru && !recurrence
+        if verbose
+            @warn "GRU has been requested but recurrence is false. GRU can only be used with recurrence. Returning false."
+        end
+        return false
+    end
+    
     if reservoir
         num_layers = num_layers - 1
     end
