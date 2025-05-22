@@ -139,7 +139,12 @@ function generate_tensor_grammar(N::Int, edges::Int, Rank::Int)
     grammar = reshape(shuffle(vcat(repeat([1], edges), repeat([0], (N^Rank) - edges))), tuple([N for x in 1:Rank]...))
 
     output_dict = Dict(
-        "grammar"=>grammar
+        "grammar"=>grammar,
+        "out_degree_matrix"=>"NULL",
+        "in_degree_matrix"=>"NULL",
+        "out_degree_laplacian"=>"NULL",
+        "in_degree_laplacian"=>"NULL",
+        "signless_in_degree_laplacian"=>"NULL" # For Sun et al. (2021) entropy calcs
     )
     return output_dict
 end
