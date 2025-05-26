@@ -98,7 +98,6 @@ function _build_db_table(yaml_table_field_element, con)
         println("Dropping table $(name)...")
         DBInterface.execute(con, dropquery)
     end
-
     createquery = "CREATE TABLE IF NOT EXISTS $(name) ($(_concatenate_colnames_constraints(yaml_table_field_element["columns"], constraint)));"
 
     try
@@ -163,7 +162,7 @@ function load_yaml(yaml_file_name)
             end
         end
 
-        grammar_fields = ["alphabet_length", "max_k_grams", "num_grammars", "num_attempts", "entropy_rounding_precision", "seed"]
+        grammar_fields = ["alphabet_length", "max_k_grams", "max_num_constraints", "max_threshold", "max_num_precedence_relations", "num_grammars", "seed"]
         for f in grammar_fields
             if !(f in keys(settings["grammar_parameters"]))
                 error("$(f) field is missing from grammar_parameters in YAML at $(yaml_location)! Please copy the template.")
@@ -211,14 +210,10 @@ function load_yaml(yaml_file_name)
                 end
             end
         end
-
         return settings
-
     else
         error("YAML file not found. Please add it to the src folder.")
     end
-
-
 end
 
 # Checks that the database configuration matches the YAML file specification
@@ -246,11 +241,8 @@ function check_database(yaml_settings_name)
             end
         end
     end
-
     DBInterface.close!(con)
-
     return true
-
 end
 
 function load_parameters(settings, type)
@@ -258,13 +250,15 @@ function load_parameters(settings, type)
         global alphabet_length = settings["grammar_parameters"]["alphabet_length"]
         global max_k_grams = settings["grammar_parameters"]["max_k_grams"]
         global num_grammars = settings["grammar_parameters"]["num_grammars"]
-        global num_attempts = settings["grammar_parameters"]["num_attempts"]
-        global entropy_rounding_precision = settings["grammar_parameters"]["entropy_rounding_precision"]
+        global max_num_constraints = settings["grammar_parameters"]["max_num_constraints"]
+        global max_threshold = settings["grammar_parameters"]["max_threshold"]
+        global max_num_precedence_relations = settings["grammar_parameters"]["max_num_precedence_relations"]
         global grammar_seed = settings["grammar_parameters"]["seed"]
         global alphabet = 'a':'z'
         global grammar_connections = alphabet_length*2:alphabet_length^2-alphabet_length
-        println("Loading grammar parameters: alphabet_length ($(alphabet_length)), max_k_grams ($(max_k_grams)), num_grammars ($(num_grammars)), num_attempts ($(num_attempts)),\
-        entropy_rounding_precision ($(entropy_rounding_precision)), grammar_seed ($(grammar_seed)), alphabet ($(alphabet)), grammar_connections ($(grammar_connections)).")
+        println("Loading grammar parameters: alphabet_length ($(alphabet_length)), max_k_grams ($(max_k_grams)), num_grammars ($(num_grammars)),\
+        max_num_constraints ($(max_num_constraints)), max_threshold ($(max_threshold)), max_num_precedence_relations ($(max_num_precedence_relations)),\
+        grammar_seed ($(grammar_seed)), alphabet ($(alphabet)), grammar_connections ($(grammar_connections)).")
     elseif type == "string_parameters"
         global string_length = settings["string_parameters"]["string_length"]
         global num_strings = settings["string_parameters"]["num_strings"]
@@ -299,7 +293,6 @@ function load_parameters(settings, type)
 
     return nothing
 end
-
 
 function build_insert_query(tab_name, col_names, values)
     if length(col_names) == length(values)

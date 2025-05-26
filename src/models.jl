@@ -427,7 +427,7 @@ function train_test_split(training_data::DataFrame, prop::Float32,
     return train_x, train_y, test_x, test_y
 end
 
-const lbcelossfn = BinaryCrossEntropyLoss(; logits=Val(true));
+const lbcelossfn = BinaryCrossEntropyLoss(; logits=Val(false)); # Don't use logits, as the model outputs probabilities already
 
 function accuracy(y_pred::AbstractArray, y_true::AbstractArray)::Int
     return sum((y_pred .> 0.5f0) .== y_true)
@@ -457,7 +457,7 @@ function train_model(model::AGLModel, opt::Optimisers.AbstractRule,
     rng = Xoshiro(seed)
     ps, st = Lux.setup(rng, model)
 
-    train_state = Training.TrainState(model, ps, st, opt)
+    train_state = Training.TrainState(model, ps, st, opt) # try passing ClipValue to the optimizer doing something like OptimiserChain(ClipGrad(1.0), opt).
 
     pretrain_probs_train = validate(model, train_x, train_state)
     pretrain_probs_test = validate(model, test_x, train_state)
