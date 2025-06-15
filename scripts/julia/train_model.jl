@@ -49,7 +49,7 @@ println("Deleting any partially completed runs from relevant tables")
 println("Deleting from $(settings["tables"]["accuracieslosses"]["name"])")
 
 for i in 1:nrow(model_table)
-	model_id = table_model.modelid[i]
+	model_id = model_table.modelid[i]
 	acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
 		            $(settings["tables"]["grammars"]["name"]) g ON \
 		            t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \

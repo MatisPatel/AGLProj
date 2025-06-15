@@ -52,7 +52,7 @@ tables:
       - ["ungrammartransitionmatrix", "LONGTEXT"]
       - ["run", "BOOL"]
     constraint: "UNIQUE (kgrams, grammartype, grammarsubtype, constraintlisthash, threshold, precedencerelationlisthash, second_order_mod, transitionmatrixhash)"
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   strings:
     name: "strings"
     columns: 
@@ -64,7 +64,7 @@ tables:
       - ["error", "INT NOT NULL"]
       - ["stringid", "INT AUTO_INCREMENT NOT NULL PRIMARY KEY"]
     constraint: "UNIQUE (grammarid, string)"
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   models:
     name: "modelatts"
     columns:
@@ -80,7 +80,7 @@ tables:
       - ["reservoir", "BOOL"]
       - ["run", "BOOL"]
     constraint: "UNIQUE (neurons, layers, laminations, recurrence, gru, inpool, outpool, reservoir)"
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   modeloutputs:
     name: "modeloutputs"
     columns:
@@ -93,7 +93,7 @@ tables:
     - ["pretrainprobs", "FLOAT(32)"]
     - ["posttrainprobs", "FLOAT(32)"]
     # constraint: "UNIQUE (stringid, modelid)" # removed to speed up training
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
   accuracieslosses:
     name: "accuracieslosses"
     columns:
@@ -106,4 +106,4 @@ tables:
     - ["trainbrier", "FLOAT NOT NULL"]
     - ["testbrier", "FLOAT NOT NULL"]
     # constraint: "UNIQUE (modelid, grammarid, epoch, batch)" # removed to speed up training
-    delete_and_rebuild: true # only if you want to rerun the database from scratch 
+    delete_and_rebuild: false # only if you want to rerun the database from scratch 
