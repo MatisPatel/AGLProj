@@ -43,7 +43,7 @@ cat("Getting post training data...\n")
 query <- glue::glue("SELECT g.{settings$tables$grammars$columns[[1]][1]}, m.{settings$tables$models$columns[[1]][1]}, 
 o.{settings$tables$modeloutputs$columns[[6]][1]}, o.{settings$tables$modeloutputs$columns[[7]][1]}, 
 s.{settings$tables$strings$columns[[5]][1]}, 
-g.{settings$tables$grammars$columns[[2]][1]}, g.{settings$tables$grammars$columns[[3]][1]}, 
+g.{settings$tables$grammars$columns[[2]][1]}, g.{settings$tables$grammars$columns[[3]][1]}, g.{settings$tables$grammars$columns[[4]][1]},
 m.{settings$tables$models$columns[[2]][1]}, m.{settings$tables$models$columns[[3]][1]}, m.{settings$tables$models$columns[[4]][1]}, 
 m.{settings$tables$models$columns[[5]][1]}, m.{settings$tables$models$columns[[6]][1]} FROM 
 {settings$tables$modeloutputs$name} o INNER JOIN {settings$tables$grammars$name} g ON 
@@ -59,17 +59,19 @@ cat("Summarising...\n")
 
 post_training_data_summarised <- post_training_data |>
   dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2)) |>
-  dplyr::group_by(kgrams, grammartype, neurons, layers, laminations, recurrence, gru) |>
+  dplyr::group_by(grammarsubtype, neurons, layers, laminations, recurrence, gru) |>
   dplyr::summarise(`Brier Score` = sum(root_squared_error)/dplyr::n()) |>
   dplyr::mutate(recurrence = ifelse(recurrence == 0, "FFN",
                             ifelse(gru == 1, "GRU", "RNN")),
                 recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
-         laminations = ifelse(laminations == 1, "Dense",
-                              ifelse(laminations == 2, "Laminated (2)", "Laminated (3)")),
-         grammartype = ifelse(grammartype == "reg", "III",
-                              ifelse(grammartype == "cfg_rep", "II",
-                                     ifelse(grammartype == "cfg_mirr", "II",
-                                            "I")))) 
+         laminations = ifelse(laminations == 1, "Dense", "Laminated"),
+         grammartype = ifelse(grammarsubtype == "slk", "Strictly Local",
+                              ifelse(grammarsubtype == "ltk", "Locally Testable",
+                                     ifelse(grammarsubtype == "lttk", "Threshold Testable",
+                                            ifelse(grammarsubtype == "lttko", "Ordered",
+                                                   ifelse(grammarsubtype == "mso", "Monadic SO",
+                                                          ifelse(grammarsubtype == "AnBnCn", "Context-Sensitive",
+                                                                 "Context-Free"))))))) 
                                             
 post_training_data_summarised_for_plot <- post_training_data_summarised |>
   dplyr::filter(layers > 1)
@@ -77,14 +79,19 @@ post_training_data_summarised_for_plot <- post_training_data_summarised |>
 cat("Plotting...\n")
 
 plot <- ggplot2::ggplot(data = post_training_data_summarised_for_plot) +
-  ggplot2::geom_boxplot(ggplot2::aes(x = factor(grammartype, level = c("III", 
-                                                    "II", 
-                                                    "I")), 
+  ggplot2::geom_boxplot(ggplot2::aes(x = factor(grammartype, level = c("Strictly Local", 
+                                                    "Locally Testable", 
+                                                    "Threshold Testable",
+                                                    "Ordered",
+                                                    "Monadic SO",
+                                                    "Context-Free",
+                                                    "Context-Sensitive")), 
                   y = `Brier Score`, 
                   fill = factor(layers, level = c(1, 2, 3, 4, 5)))) +
   ggplot2::facet_grid(recurrence ~ laminations) + ggplot2::theme_minimal() + 
     ggplot2::theme(text=ggplot2::element_text(size=20), 
-          axis.text=ggplot2::element_text(size=20), 
+          axis.text=ggplot2::element_text(size=20),
+          axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1), 
           axis.title=ggplot2::element_text(size=20), 
           plot.title=ggplot2::element_text(size=20), 
           legend.text=ggplot2::element_text(size=20), 
@@ -101,7 +108,8 @@ plot <- ggplot2::ggplot(data = post_training_data_summarised) +
                   fill = factor(layers, level = c(1, 2, 3, 4, 5)))) +
   ggplot2::facet_grid(recurrence ~ laminations) + ggplot2::theme_minimal() + 
     ggplot2::theme(text=ggplot2::element_text(size=20), 
-          axis.text=ggplot2::element_text(size=20), 
+          axis.text=ggplot2::element_text(size=20),
+          axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1), 
           axis.title=ggplot2::element_text(size=20), 
           plot.title=ggplot2::element_text(size=20), 
           legend.text=ggplot2::element_text(size=20), 
