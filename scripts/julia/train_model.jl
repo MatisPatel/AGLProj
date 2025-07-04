@@ -16,6 +16,7 @@
 using Distributed
 n_procs = 50
 addprocs(n_procs-1)
+delete_partial_runs = false # whether to delete any partially completed runs from the database
 
 @everywhere begin
     using DrWatson
@@ -44,48 +45,16 @@ println("Loading models...")
 
 # Load models
 model_table = DBInterface.execute(con, "SELECT * FROM $(settings["tables"]["models"]["name"]) WHERE run = FALSE;") |> DataFrame
-# Delete any existing outputs from failed runs
-println("Deleting any partially completed runs from relevant tables")
-println("Deleting from $(settings["tables"]["accuracieslosses"]["name"])")
 
-for i in 1:nrow(model_table)
-	model_id = model_table.modelid[i]
-	acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
-		            $(settings["tables"]["grammars"]["name"]) g ON \
-		            t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
-		            INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
-		            t.$(settings["tables"]["accuracieslosses"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
-		            g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
-		            m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
-		            m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
-
-	DBInterface.execute(con, acc_losses_query)
-end
-
-println("Deleting from $(settings["tables"]["modeloutputs"]["name"])")
-
-for i in 1:nrow(model_table)
-	model_id = model_table.modelid[i]
-	outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
-		        $(settings["tables"]["grammars"]["name"]) g ON \
-		        t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
-		        INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
-		        t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
-		        g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
-		        m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
-		        m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
-
-	DBInterface.execute(con, outputs_query)
-end
-
-
-
-#############################################################################################################
-
-## Build models
+# Build models
 
 model_list = []
 for row in 1:nrow(model_table) # quicker to do on one worker
+    input_size = model_table.inputsize[row]
+    if (input_size % alphabet_length != 0 || input_size > alphabet_length * string_length)
+        error("Input size $(input_size) is not compatible with alphabet length $(alphabet_length) and string length $(string_length). Change the settings to match the database, or re-initialise the database.")
+    end
+    
     if row % 100 == 0
         println("Model ID: ", model_table.modelid[row], " loaded.")
     end
@@ -97,12 +66,53 @@ for row in 1:nrow(model_table) # quicker to do on one worker
                             Bool(model_table.inpool[row]),
                             Bool(model_table.outpool[row]),
                             num_errors, string_length, alphabet_length,
-                            Bool(model_table.reservoir[row]), reservoir_scaling_factor)
+                            Bool(model_table.reservoir[row]), reservoir_scaling_factor,
+                            model_table.inputsize[row])
         
-    push!(model_list, (model_chain, model_table.modelid[row]))
+    push!(model_list, (model_chain, model_table.modelid[row], model_table.inputsize[row]))
 end
 
-### Train
+# Delete any existing outputs from failed runs
+
+if delete_partial_runs
+
+    println("Deleting any partially completed runs from relevant tables")
+    println("Deleting from $(settings["tables"]["accuracieslosses"]["name"])")
+
+    for i in 1:nrow(model_table)
+        model_id = model_table.modelid[i]
+        acc_losses_query = "DELETE t FROM $(settings["tables"]["accuracieslosses"]["name"]) t INNER JOIN \
+                        $(settings["tables"]["grammars"]["name"]) g ON \
+                        t.$(settings["tables"]["accuracieslosses"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+                        INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+                        t.$(settings["tables"]["accuracieslosses"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+                        g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+                        m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
+                        m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
+
+        DBInterface.execute(con, acc_losses_query)
+    end
+
+    println("Deleting from $(settings["tables"]["modeloutputs"]["name"])")
+
+    for i in 1:nrow(model_table)
+        model_id = model_table.modelid[i]
+        outputs_query = "DELETE t FROM $(settings["tables"]["modeloutputs"]["name"]) t INNER JOIN \
+                    $(settings["tables"]["grammars"]["name"]) g ON \
+                    t.$(settings["tables"]["modeloutputs"]["columns"][2][1]) = g.$(settings["tables"]["grammars"]["columns"][1][1]) \
+                    INNER JOIN $(settings["tables"]["models"]["name"]) m ON \
+                    t.$(settings["tables"]["modeloutputs"]["columns"][4][1]) = m.$(settings["tables"]["models"]["columns"][1][1]) WHERE \
+                    g.$(settings["tables"]["grammars"]["columns"][end][1]) = FALSE AND \
+                    m.$(settings["tables"]["models"]["columns"][end][1]) = FALSE AND \
+                    m.$(settings["tables"]["models"]["columns"][1][1]) = $(model_id);"
+
+        DBInterface.execute(con, outputs_query)
+    end
+end
+
+#############################################################################################################
+
+# Train
 
 output_col_names = [x[1] for x in settings["tables"]["modeloutputs"]["columns"][2:end]]
 acc_col_names = [x[1] for x in settings["tables"]["accuracieslosses"]["columns"][1:end]]
@@ -114,11 +124,12 @@ if nrow(grammars_from_db) > 0
         grammar_query = string("SELECT * FROM strings WHERE grammarid = $(grammar_id) AND stringlength = $(string_length);") 
         training_data = DBInterface.execute(con, grammar_query) |> DataFrame |> shuffle # get the strings for the ith grammar
         
-        for models in collect(Iterators.partition(model_list, n_procs*6)) # batch up the models 
+        for models in collect(Iterators.partition(model_list, n_procs*15)) # batch up the models 
             results = @distributed (vcat) for m in models
                 model = m[1]
                 model_id = m[2]
-                next_output, next_acc_loss =  train_and_store(model, opt, training_data, prop_test, alphabet_length;
+                model_input_size = Int64(m[3])
+                next_output, next_acc_loss =  train_and_store(model, opt, training_data, prop_test, alphabet_length, model_input_size;
                                                                 n_epochs=n_epochs,
                                                                 batch_size=batch_size, 
                                                                 seed=model_seed,

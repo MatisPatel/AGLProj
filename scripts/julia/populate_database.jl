@@ -448,15 +448,17 @@ for neurs in min_num_neurons:neuron_increments:max_num_neurons
                     for rec in [true, false]
                         for gru in [true, false]
                             for res in [false] # [true, false]
-                                model = build_model(neurs, lays, lams, rec, gru, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor)
-                                if model != false
-                                    println("Generating model with $(neurs) neurons, $(lays) layers, $(lams) laminations, recurrent = $(rec), gru = $(gru), input pooling = $(ipool), output pooling = $(opool), reservoir = $(res)")
-                                    value_list = vcat(neurs, lays, lams, rec, gru, ipool, opool, res, false)
-                                    query = build_insert_query(settings["tables"]["models"]["name"], col_names, value_list)
-                                    try
-                                        DBInterface.execute(con, query)
-                                    catch
-                                        continue
+                                for inputsize in alphabet_length:alphabet_length:(alphabet_length * string_length) # the input size for each network - will be ignored for FFNs as they have no sequence memory.
+                                    model = build_model(neurs, lays, lams, rec, gru, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor, inputsize)
+                                    if model != false
+                                        println("Generating model with $(neurs) neurons, $(lays) layers, $(lams) laminations, $(inputsize) input size, recurrent = $(rec), gru = $(gru), input pooling = $(ipool), output pooling = $(opool), reservoir = $(res)")
+                                        value_list = vcat(neurs, lays, lams, rec, gru, ipool, opool, res, inputsize, false)
+                                        query = build_insert_query(settings["tables"]["models"]["name"], col_names, value_list)
+                                        try
+                                            DBInterface.execute(con, query)
+                                        catch
+                                            continue
+                                        end
                                     end
                                 end
                             end

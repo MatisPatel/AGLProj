@@ -21,10 +21,11 @@ end
 AGLModel = Union{RNNCellClassifier,Chain}
 
 # Build models function
-function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, input_pool, output_pool, num_classes, length_strings, length_alphabet, reservoir, reservoir_scaling, verbose=false)
+function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, input_pool, output_pool, num_classes, length_strings, length_alphabet, reservoir, reservoir_scaling, input_size, verbose=false)
     # Takes number of neurons, number of layers, number of splits in the hidden layers, number of classes (i.e., errors), length of strings, and length of alphabet 
     @assert (num_laminations >= 1) "Number of laminations must be greater than or equal to 1 (single lamination is just a densely connected network)."
-
+    @assert (input_size % alphabet_length == 0 && input_size ≤ alphabet_length * length_strings) "Input size must be a positive multiple of the alphabet length, less than or equal to alphabet length * string length."
+    
     if gru && !recurrence
         if verbose
             @warn "GRU has been requested but recurrence is false. GRU can only be used with recurrence. Returning false."
@@ -78,6 +79,13 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
         return false
     end
 
+    if recurrence == false && input_size != length_strings*length_alphabet
+        if verbose
+            @warn "A feedforward network must have an input size of string length $(length_strings) * alphabet length $(length_alphabet) = $(length_strings*length_alphabet)."
+        end
+        return false
+    end
+
     lam_splits = Int.(sort([floor(num_neurons*(k+1)/num_laminations) - 
                     floor(num_neurons*k / num_laminations) for k in 1:num_laminations], rev=true))
     for lam_neurons in lam_splits
@@ -97,15 +105,15 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
 
     if reservoir
         if recurrence
-            input_dims = length_alphabet * reservoir_scaling
+            input_dims = input_size * reservoir_scaling
         else
-            input_dims = length_strings*length_alphabet * reservoir_scaling
+            input_dims = input_size * reservoir_scaling
         end
     else
         if recurrence
-            input_dims = length_alphabet
+            input_dims = input_size
         else
-            input_dims = length_strings*length_alphabet
+            input_dims = input_size
         end
     end
 
@@ -209,20 +217,20 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
             if recurrence
                 if gru
                     model = RNNCellClassifier(
-                        Chain(Lux.Experimental.freeze(Recurrence(GRUCell(length_alphabet => input_dims), return_sequence=true)), 
+                        Chain(Lux.Experimental.freeze(Recurrence(GRUCell(input_size => input_dims), return_sequence=true)), 
                         Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                     )
                 else
                     model = RNNCellClassifier(
-                        Chain(Lux.Experimental.freeze(Recurrence(RNNCell(length_alphabet => input_dims, relu), return_sequence=true)), 
+                        Chain(Lux.Experimental.freeze(Recurrence(RNNCell(input_size => input_dims, relu), return_sequence=true)), 
                         Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                     )
                 end
             else
                 model = Chain(
-                    Lux.Experimental.freeze(Dense(length_strings*length_alphabet, input_dims, relu)),
+                    Lux.Experimental.freeze(Dense(input_size, input_dims, relu)),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                     )
@@ -246,21 +254,21 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 if gru
                     model = RNNCellClassifier(
                         Chain(Lux.Experimental.freeze(
-                            Recurrence(GRUCell(length_alphabet => input_dims), return_sequence=true)), 
+                            Recurrence(GRUCell(input_size => input_dims), return_sequence=true)), 
                             Recurrence(GRUCell(input_dims => sum([splits[1] for splits in layer_splits])), return_sequence=true), Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                         )
                 else
                     model = RNNCellClassifier(
                         Chain(Lux.Experimental.freeze(
-                            Recurrence(RNNCell(length_alphabet => input_dims, relu), return_sequence=true)), 
+                            Recurrence(RNNCell(input_size => input_dims, relu), return_sequence=true)), 
                             Recurrence(RNNCell(input_dims => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true), Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                         )
                 end
             else
                 model = Chain(
-                    Lux.Experimental.freeze(Dense(length_strings*length_alphabet, input_dims, relu)),
+                    Lux.Experimental.freeze(Dense(input_size, input_dims, relu)),
                     Dense(input_dims => sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
@@ -270,18 +278,18 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
             if recurrence
                 if gru
                     model = RNNCellClassifier(
-                        Chain(Recurrence(GRUCell(length_alphabet => sum([splits[1] for splits in layer_splits])), return_sequence=true), Parallel(vcat, branches...)),
+                        Chain(Recurrence(GRUCell(input_size => sum([splits[1] for splits in layer_splits])), return_sequence=true), Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                         )
                 else
                     model = RNNCellClassifier(
-                        Chain(Recurrence(RNNCell(length_alphabet => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true), Parallel(vcat, branches...)),
+                        Chain(Recurrence(RNNCell(input_size => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true), Parallel(vcat, branches...)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                         )
                 end
             else
                 model = Chain(
-                    Dense(length_strings*length_alphabet => sum([splits[1] for splits in layer_splits]), relu),
+                    Dense(input_size => sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
                     )
@@ -293,7 +301,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 if gru
                     model = RNNCellClassifier(
                         Chain(Lux.Experimental.freeze(
-                            Recurrence(GRUCell(length_alphabet => input_dims), return_sequence=true)), 
+                            Recurrence(GRUCell(input_size => input_dims), return_sequence=true)), 
                         Parallel(vcat, branches...), 
                         Recurrence(GRUCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits])), return_sequence=false)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
@@ -301,7 +309,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 else
                     model = RNNCellClassifier(
                         Chain(Lux.Experimental.freeze(
-                            Recurrence(RNNCell(length_alphabet => input_dims, relu), return_sequence=true)), 
+                            Recurrence(RNNCell(input_size => input_dims, relu), return_sequence=true)), 
                         Parallel(vcat, branches...), 
                         Recurrence(RNNCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu), return_sequence=false)),
                         Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
@@ -309,7 +317,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 end
             else
                 model = Chain(
-                    Lux.Experimental.freeze(Dense(length_strings*length_alphabet => input_dims, relu)),
+                    Lux.Experimental.freeze(Dense(input_size => input_dims, relu)),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu),
                     Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
@@ -343,7 +351,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
             if recurrence
                 if gru
                     model = RNNCellClassifier(
-                        Chain(Lux.Experimental.freeze(GRUCell(length_alphabet => input_dims)),
+                        Chain(Lux.Experimental.freeze(GRUCell(input_size => input_dims)),
                         Recurrence(GRUCell(input_dims => sum([splits[1] for splits in layer_splits])), return_sequence=true),
                         Parallel(vcat, branches...),
                         Recurrence(GRUCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits])), return_sequence=false),
@@ -352,7 +360,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                     )
                 else
                     model = RNNCellClassifier(
-                        Chain(Lux.Experimental.freeze(RNNCell(length_alphabet => input_dims, relu)),
+                        Chain(Lux.Experimental.freeze(RNNCell(input_size => input_dims, relu)),
                         Recurrence(RNNCell(input_dims => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true),
                         Parallel(vcat, branches...),
                         Recurrence(RNNCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu), return_sequence=false),
@@ -362,7 +370,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 end
             else
                 model = Chain(
-                    Lux.Experimental.freeze(Dense(length_strings*length_alphabet => input_dims, relu)),
+                    Lux.Experimental.freeze(Dense(input_size => input_dims, relu)),
                     Dense(input_dims => sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu),
@@ -373,7 +381,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
             if recurrence
                 if gru
                     model = RNNCellClassifier(
-                        Chain(Recurrence(GRUCell(length_alphabet => sum([splits[1] for splits in layer_splits])), return_sequence=true),
+                        Chain(Recurrence(GRUCell(input_size => sum([splits[1] for splits in layer_splits])), return_sequence=true),
                         Parallel(vcat, branches...),
                         Recurrence(GRUCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits])), return_sequence=false)
                         ),
@@ -381,7 +389,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                     )
                 else
                     model = RNNCellClassifier(
-                        Chain(Recurrence(RNNCell(length_alphabet => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true),
+                        Chain(Recurrence(RNNCell(input_size => sum([splits[1] for splits in layer_splits]), relu), return_sequence=true),
                         Parallel(vcat, branches...),
                         Recurrence(RNNCell(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu), return_sequence=false)
                         ),
@@ -390,7 +398,7 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
                 end
             else
                 model = Chain(
-                    Dense(length_strings*length_alphabet => sum([splits[1] for splits in layer_splits]), relu),
+                    Dense(input_size => sum([splits[1] for splits in layer_splits]), relu),
                     Parallel(vcat, branches...),
                     Dense(sum([splits[end-1] for splits in layer_splits]) => sum([splits[end] for splits in layer_splits]), relu),
                     Dense(sum([splits[end] for splits in layer_splits]) => num_classes, sigmoid)
@@ -405,20 +413,36 @@ end
 # 4. Model training functions
 
 # Train-test splitter
+
+function _expand_ngrams(s::Vector{Char}, n_gram_size::Int)::Vector{Char}
+    out_list = []
+    for i in 1:((length(s) - n_gram_size)+1)
+        push!(out_list, s[i:(i + n_gram_size - 1)]...)
+    end
+    return out_list
+end
+
 function train_test_split(training_data::DataFrame, prop::Float32, 
-    alphabet_length::Int, string_length::Int, rec::Bool)::Tuple{AbstractArray, AbstractArray, AbstractArray, AbstractArray}
+    alphabet_length::Int, string_length::Int, rec::Bool, input_size::Int)::Tuple{AbstractArray, AbstractArray, AbstractArray, AbstractArray}
+
+    @assert (rec || input_size == string_length * alphabet_length) "Input size must be equal to string length * alphabet length for feedforward networks."
 
     alphabet = collect('a':'z')[1:Int(alphabet_length)]
 
-    split_strings = [collect(s) for s in training_data.string]
-    flattened_strings = vcat(split_strings...)
-    encodings = Float32.(vec(onehotbatch(flattened_strings, String(alphabet)))) # cast types to avoid promotion
-
     if rec
-        encodings_matrix = reshape(encodings, length(alphabet), string_length, :)
+        ngram_size = div(input_size, alphabet_length)
+        split_strings = [_expand_ngrams(collect(s), ngram_size) for s in training_data.string]
+        flattened_strings = vcat(split_strings...)
+        encodings = Float32.(vec(onehotbatch(flattened_strings, String(alphabet)))) # cast types to avoid promotion
+
+        encodings_matrix = reshape(encodings, ngram_size*alphabet_length, (string_length - ngram_size) + 1, :)
         labels = Float32.(training_data.error) # cast types to avoid promotion
     else
-        encodings_matrix = reshape(encodings, length(alphabet)*string_length, :)
+        split_strings = [collect(s) for s in training_data.string]
+        flattened_strings = vcat(split_strings...)
+        encodings = Float32.(vec(onehotbatch(flattened_strings, String(alphabet)))) # cast types to avoid promotion
+
+        encodings_matrix = reshape(encodings, alphabet_length*string_length, :)
         labels = Float32.(training_data.error') # cast types to avoid promotion; transpose for the FF nets
     end
 
@@ -506,11 +530,11 @@ function train_model(model::AGLModel, opt::Optimisers.AbstractRule,
     return output_dict
 end
 
-function train_and_store(model::AGLModel, opt::Optimisers.AbstractRule, training_data::DataFrame, prop_test::Float32, alphabet_length::Int;
+function train_and_store(model::AGLModel, opt::Optimisers.AbstractRule, training_data::DataFrame, prop_test::Float32, alphabet_length::Int, input_size::Int;
     n_epochs::Int, batch_size::Int, seed::Int)::Tuple{DataFrame, DataFrame}
         
     train_x, train_y, test_x, test_y = train_test_split(training_data, prop_test, alphabet_length, 
-                                                        string_length, isa(model, RNNCellClassifier))
+                                                        string_length, isa(model, RNNCellClassifier), input_size)
 
     try
         outputs = train_model(model, opt, train_x, train_y, test_x, test_y; 
