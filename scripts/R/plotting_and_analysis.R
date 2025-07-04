@@ -45,7 +45,7 @@ o.{settings$tables$modeloutputs$columns[[6]][1]}, o.{settings$tables$modeloutput
 s.{settings$tables$strings$columns[[5]][1]}, 
 g.{settings$tables$grammars$columns[[2]][1]}, g.{settings$tables$grammars$columns[[3]][1]}, g.{settings$tables$grammars$columns[[4]][1]},
 m.{settings$tables$models$columns[[2]][1]}, m.{settings$tables$models$columns[[3]][1]}, m.{settings$tables$models$columns[[4]][1]}, 
-m.{settings$tables$models$columns[[5]][1]}, m.{settings$tables$models$columns[[6]][1]} FROM 
+m.{settings$tables$models$columns[[5]][1]}, m.{settings$tables$models$columns[[6]][1]}, m.{settings$tables$models$columns[[10]][1]} FROM 
 {settings$tables$modeloutputs$name} o INNER JOIN {settings$tables$grammars$name} g ON 
 g.{settings$tables$grammars$columns[[1]][1]} = o.{settings$tables$modeloutputs$columns[[2]][1]} INNER JOIN 
 {settings$tables$models$name} m ON 
@@ -59,11 +59,12 @@ cat("Summarising...\n")
 
 post_training_data_summarised <- post_training_data |>
   dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2)) |>
-  dplyr::group_by(grammarsubtype, neurons, layers, laminations, recurrence, gru) |>
+  dplyr::group_by(grammarsubtype, neurons, inputsize, laminations, recurrence, gru) |>
   dplyr::summarise(`Brier Score` = sum(root_squared_error)/dplyr::n()) |>
   dplyr::mutate(recurrence = ifelse(recurrence == 0, "FFN",
                             ifelse(gru == 1, "GRU", "RNN")),
                 recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
+                inputsize = as.numeric(inputsize/6),
          laminations = ifelse(laminations == 1, "Dense", "Laminated"),
          grammartype = ifelse(grammarsubtype == "slk", "Strictly Local",
                               ifelse(grammarsubtype == "ltk", "Locally Testable",
@@ -73,8 +74,8 @@ post_training_data_summarised <- post_training_data |>
                                                           ifelse(grammarsubtype == "AnBnCn", "Context-Sensitive",
                                                                  "Context-Free"))))))) 
                                             
-post_training_data_summarised_for_plot <- post_training_data_summarised |>
-  dplyr::filter(layers > 1)
+post_training_data_summarised_for_plot <- post_training_data_summarised # |>
+  # dplyr::filter(layers > 1)
  
 cat("Plotting...\n")
 
@@ -87,7 +88,7 @@ plot <- ggplot2::ggplot(data = post_training_data_summarised_for_plot) +
                                                     "Context-Free",
                                                     "Context-Sensitive")), 
                   y = `Brier Score`, 
-                  fill = factor(layers, level = c(1, 2, 3, 4, 5)))) +
+                  fill = factor(inputsize, level = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)))) +
   ggplot2::facet_grid(recurrence ~ laminations) + ggplot2::theme_minimal() + 
     ggplot2::theme(text=ggplot2::element_text(size=20), 
           axis.text=ggplot2::element_text(size=20),
@@ -96,7 +97,7 @@ plot <- ggplot2::ggplot(data = post_training_data_summarised_for_plot) +
           plot.title=ggplot2::element_text(size=20), 
           legend.text=ggplot2::element_text(size=20), 
           legend.title=ggplot2::element_text(size=20)) +
-    ggplot2::xlab("Grammar Type") + ggplot2::guides(fill=ggplot2::guide_legend(title="Num Layers"))
+    ggplot2::xlab("Grammar Type") + ggplot2::guides(fill=ggplot2::guide_legend(title="Input Size"))
 
 ggplot2::ggsave(file="plots/grammar_by_brier_all_no_layer_1.pdf", plot=plot, width=10, height=8)
 
