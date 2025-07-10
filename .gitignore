@@ -1,5 +1,6 @@
 *.csv
 !src/user_database_connection.csv
+!data/data_summary.csv
 *KV.jl
 *.bson 
 *.html
@@ -9,9 +10,9 @@ scratch/
 *.vscode/
 *.Rhistory
 
-data
+# data
 videos
-plots
+# plots
 notebooks
 _research
 **/DrWatson Example/
