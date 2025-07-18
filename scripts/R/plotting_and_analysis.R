@@ -172,7 +172,7 @@ plot <- ggplot2::ggplot(
     axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, size = 0.5),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
     panel.spacing     = grid::unit(1, "lines"),
     legend.text       = ggplot2::element_text(size = 20),
     legend.title      = ggplot2::element_text(size = 20)
@@ -235,7 +235,7 @@ plot <- ggplot2::ggplot(
     axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, size = 0.5),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
     panel.spacing     = grid::unit(1, "lines"),
     legend.text       = ggplot2::element_text(size = 20),
     legend.title      = ggplot2::element_text(size = 20)
@@ -291,7 +291,7 @@ plot <- ggplot2::ggplot(
     axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, size = 0.5),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
     panel.spacing     = grid::unit(1, "lines"),
     legend.text       = ggplot2::element_text(size = 20),
     legend.title      = ggplot2::element_text(size = 20)
@@ -343,7 +343,7 @@ plot <- ggplot2::ggplot(
     axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, size = 0.5),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
     panel.spacing     = grid::unit(1, "lines"),
     legend.text       = ggplot2::element_text(size = 20),
     legend.title      = ggplot2::element_text(size = 20)
@@ -398,7 +398,7 @@ plot <- ggplot2::ggplot(
     axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, size = 0.5),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
     panel.spacing     = grid::unit(1, "lines"),
     legend.text       = ggplot2::element_text(size = 20),
     legend.title      = ggplot2::element_text(size = 20)
@@ -416,29 +416,34 @@ ggplot2::ggsave(file="plots/grammar_by_layers.pdf", plot=plot, width=16, height=
 cat("Running beta regression...")
 
 # Fixed effects Bayesian beta regression
+s_v_transform_constant <- 0.5 # As recommended
 
 post_training_data_summarised_analysis = post_training_data_summarised |>
   dplyr::rename(
     Brier_Score = `Brier Score`) |>
-  dplyr::mutate(inputsize = inputsize/6)
+  dplyr::mutate(inputsize = inputsize/6,
+                Brier_Score_SV_Transform = ((Brier_Score * (dplyr::n() - 1)) + s_v_transform_constant) / dplyr::n())
 
 # 1. Define the formula
-model_zi <- brms::bf(
-  Brier_Score ~ neurons + laminations + recurrence + layers + inputsize + grammartype,  # mean (μ) model
-  phi         ~ neurons + laminations + recurrence + layers + inputsize + grammartype,  # precision model
-  zi          ~ neurons + laminations + recurrence + layers + inputsize + grammartype   # zero-inflation model
+model_beta <- brms::bf(
+  Brier_Score_SV_Transform  ~ neurons + laminations + recurrence + layers + inputsize + grammartype,  # mean (μ) model
+  phi                       ~ 1  # precision (ϕ) model
+  # phi                       ~ neurons + laminations + recurrence + layers + inputsize + grammartype,  # precision (ϕ) model
+  # zi                        ~ neurons + laminations + recurrence + layers + inputsize + grammartype   # zero-inflation model
 )
 
 # 2. Fit the model
+library(cmdstanr)
+options(mc.cores = parallel::detectCores())  # for cmdstanr
 fit_zi <- brms::brm(
-  formula = model_zi,
-  family  = brms::zero_inflated_beta(),
+  formula = model_beta,
+  family  = brms::Beta(),
   data    = post_training_data_summarised_analysis,
   chains  = 4,
   cores   = 4,
   seed    = 1997,
   iter    = 2000,
-  control = list(adapt_delta = 0.95, max_treedepth = 15)
+  # control = list(adapt_delta = 0.95, max_treedepth = 15)
 )
 
 # 3. Plot marginals
