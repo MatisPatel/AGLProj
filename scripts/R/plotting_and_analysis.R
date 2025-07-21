@@ -418,231 +418,84 @@ ggplot2::ggsave(file="plots/grammar_by_layers.pdf", plot=plot, width=16, height=
 #################################################################################################################################
 # 2. Analysis
 
-cat("Running beta regression...")
-
 # 1. Prepare the data and model
 post_training_data_summarised_analysis = post_training_data_summarised |>
   dplyr::mutate(
-    `Brier Skill Score` = (`Brier Skill Score` + 3) / 4, # Scale to [0, 1] for the regression
-    `Brier Skill Score` = ifelse(`Brier Skill Score` == 1, 0.99999, `Brier Skill Score`), # Ensure no negative values
-  ) |>
-  dplyr::rename(
-    Brier_Skill_Score = `Brier Skill Score`)
+    Brier_Skill_Score = (`Brier Skill Score` + 3) / 4, # Scale to [0, 1] for the regression
+    Brier_Skill_Score = (Brier_Skill_Score * (dplyr::n() - 1) + 0.5) / dplyr::n(), # Apply Smithson-Verkuilen shrinkage to transform 0s and 1s.
+  ) 
 
-model_beta <- brms::bf(
-  Brier_Skill_Score ~ neurons + 
-    laminations + 
-    recurrence + 
-    layers + 
-    inputsize + 
-    grammartype,
-  phi ~ 1
-  )
+form_beta_main <- Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype
 
-cat("Plotting priors...\n")
+sink("results/beta_regression_output.txt", split = TRUE)
 
-beta_priors <- c(
-  brms::prior(normal(0, 0.5), class = "b"),                             # predictors are z-scored
-  brms::prior(normal(logit(0.96), 0.6), class = "Intercept"),           # most data is around this region
-  brms::prior(normal(log(20), 0.5), class = "Intercept", dpar = "phi")  # phi is the precision parameter, which we expect to be around 20
+cat("Fitting Beta regression with no interactions...\n")
+beta_fit_main <- betareg::betareg(
+  form_beta_main,
+  data   = post_training_data_summarised_analysis,
+  link   = "logit",        # mean link
+  link.phi = "log",        # precision parameter
+  type   = "ML"            # maximum‑likelihood estimation
 )
 
-fit_prior <- brms::brm(
-  model_beta,
-  family = brms::Beta(link = "logit"),
-  data   = post_training_data_summarised_analysis,              # empty data
-  prior  = beta_priors,           # swap in a candidate set
-  sample_prior = "only",
-  iter   = 1000, chains = 1,
-  backend = "cmdstanr", seed = 1997
+cat("\n=====  Model summary  =====\n")
+print(summary(beta_fit_main))
+
+emm_rec <- emmeans::emmeans(beta_fit_main, ~ recurrence)
+cat("\n=====  EMMEANS: recurrence  =====\n")
+print(emm_rec)
+
+cat("\n=====  Pairwise contrasts (recurrence) =====\n")
+print(pairs(emm_rec))
+
+emm_lams <- emmeans::emmeans(beta_fit_main, ~ laminations)
+cat("\n=====  EMMEANS: lamination  =====\n")
+print(emm_lams)
+
+cat("\n=====  Pairwise contrasts (lamination) =====\n")
+print(pairs(emm_lams))
+
+emm_gram <- emmeans::emmeans(beta_fit_main, ~ grammartype)
+cat("\n=====  EMMEANS: grammartype  =====\n")
+print(emm_gram)
+
+cat("\n=====  Pairwise contrasts (grammartype) =====\n")
+print(pairs(emm_gram))
+
+emm_input <- emmeans::emtrends(beta_fit_main, specs = ~ 1, var = "inputsize")
+cat("\n=====  EMTREND: input size  =====\n")
+summary(emm_input)
+
+form_beta_interaction <- Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype + (recurrence*grammartype) + (laminations*grammartype) + (inputsize*grammartype)
+
+cat("Fitting Beta regression with interactions with grammartype and laminations/recurrence...\n")
+beta_fit_interaction <- betareg::betareg(
+  form_beta_interaction,
+  data   = post_training_data_summarised_analysis,
+  link   = "logit",        # mean link
+  link.phi = "log",        # precision parameter
+  type   = "ML"            # maximum‑likelihood estimation
 )
 
-yrep <- brms::posterior_predict(fit_prior, draws = 20) * 4 - 3
-y_obs <- post_training_data_summarised_analysis$Brier_Skill_Score * 4 - 3
+cat("\n=====  Model summary  =====\n")
+print(summary(beta_fit_interaction))
 
-prior_plot <- bayesplot::ppc_dens_overlay(
-  y    = y_obs,
-  yrep = yrep
-)
+emm_rec_gram <- emmeans::emmeans(beta_fit_interaction, ~ recurrence * grammartype)
+cat("\n=====  EMMEANS: recurrence × grammartype  =====\n")
+print(emm_rec_gram)
 
-ggplot2::ggsave(
-  filename = "plots/priors.pdf",
-  plot     = prior_plot,
-  width    = 5, height = 4,
-  dpi      = 300
-)
+cat("\n=====  Pairwise contrasts (recurrence)  =====\n")
+print(pairs(emm_rec_gram, by = "grammartype"))
 
-# 2. Fit the model
-library(cmdstanr)
-options(mc.cores = parallel::detectCores())  # for cmdstanr
-cmdstanr::set_cmdstan_path()              
-Sys.setenv(STAN_NUM_THREADS = 1)
+emm_lams_gram <- emmeans::emmeans(beta_fit_interaction, ~ laminations * grammartype)
+cat("\n=====  EMMEANS: laminations × grammartype  =====\n")
+print(emm_lams_gram)
 
-fit_bss <- brms::brm(
-  model_beta, family = brms::Beta(),
-  data   = post_training_data_summarised_analysis, chains = 4, cores = 4,
-  threads = brms::threading(3),
-  iter   = 1500, seed = 1997,
-  prior = beta_priors,
-  control = list(adapt_delta = 0.95),
-  backend  = "cmdstanr",
-  save_model = "model_saves/bss.stan"
-)
+cat("\n=====  Pairwise contrasts (laminations)  =====\n")
+print(pairs(emm_lams_gram, by = "grammartype"))
 
-fit_bss  <- update(fit_bss, control = list(adapt_delta = 0.95), recompile = FALSE)
-
-saveRDS(fit_bss, "model_saves/beta_regression.RDS")
-
-
-# 3. Plot marginals
-marginal_grid <- tidyr::expand_grid(
-  recurrence = c("FFN", "RNN", "GRU"),
-  neurons = seq(32, 512, 32),
-  laminations = c("Dense", "Laminated"),
-  layers = c(1, 2, 3),
-  grammartype = levels_vec,
-  inputsize = seq(1:12)
-)
-
-student_bayes_pred_type <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(recurrence, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-model_type_marginals <- ggplot2::ggplot(student_bayes_pred_type, ggplot2::aes(x = estimate, y = recurrence, fill = recurrence)) +
-  ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  ggplot2::scale_x_continuous(limits = c(-3, 1)) +
-  ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
-  ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
-       caption = "80% and 95% credible intervals shown in black") +
-  ggthemes::theme_clean() + 
-    ggplot2::theme(text=ggplot2::element_text(size=20), 
-          axis.text=ggplot2::element_text(size=20), 
-          axis.title=ggplot2::element_text(size=20), 
-          plot.title=ggplot2::element_text(size=20), 
-          legend.text=ggplot2::element_text(size=20), 
-          legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/model_type_marginals.pdf", plot=model_type_marginals, width=10, height=8)
-
-student_bayes_pred_grammars <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(grammartype, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-grammar_type_marginals <- ggplot2::ggplot(student_bayes_pred_grammars, ggplot2::aes(x = estimate, y = grammartype, fill = grammartype)) +
-  ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  ggplot2::scale_x_continuous(limits = c(0, 0.5)) +
-  ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
-  ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
-       caption = "80% and 95% credible intervals shown in black") +
-  ggthemes::theme_clean() + 
-    ggplot2::theme(text=ggplot2::element_text(size=20), 
-          axis.text=ggplot2::element_text(size=20), 
-          axis.title=ggplot2::element_text(size=20), 
-          plot.title=ggplot2::element_text(size=20), 
-          legend.text=ggplot2::element_text(size=20), 
-          legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/grammars_marginals.pdf", plot=grammar_type_marginals, width=10, height=8)
-
-student_bayes_pred_lams <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(laminations, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-laminations_marginals <- ggplot2::ggplot(student_bayes_pred_lams, ggplot2::aes(x = estimate, y = laminations, fill = laminations)) +
-  ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  ggplot2::scale_x_continuous(limits = c(-3, 1)) +
-  ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
-  ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
-                caption = "80% and 95% credible intervals shown in black") +
-  ggthemes::theme_clean() + 
-  ggplot2::theme(text=ggplot2::element_text(size=20), 
-                 axis.text=ggplot2::element_text(size=20), 
-                 axis.title=ggplot2::element_text(size=20), 
-                 plot.title=ggplot2::element_text(size=20), 
-                 legend.text=ggplot2::element_text(size=20), 
-                 legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/laminations_marginals.pdf", plot=laminations_marginals, width=10, height=8)
-
-student_bayes_pred_neurs <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(neurons, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-neurons_marginals <- ggplot2::ggplot(student_bayes_pred_neurs, ggplot2::aes(x = neurons, y = estimate)) +
-  ggdist::stat_lineribbon() + 
-  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
-  ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Number of Neurons", y = "Predicted Brier Skill Score",
-       fill = "Credible interval") +
-  ggthemes::theme_clean() +
-  ggplot2::theme(legend.position = "bottom",
-        text=ggplot2::element_text(size=20), 
-        axis.text=ggplot2::element_text(size=20), 
-        axis.title=ggplot2::element_text(size=20), 
-        plot.title=ggplot2::element_text(size=20), 
-        legend.text=ggplot2::element_text(size=20), 
-        legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/neurons_marginals.pdf", plot=neurons_marginals, width=10, height=8)
-
-student_bayes_pred_layers <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(layers, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-layers_marginals <- ggplot2::ggplot(student_bayes_pred_layers, ggplot2::aes(x = layers, y = estimate)) +
-  ggdist::stat_lineribbon() + 
-  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
-  ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Number of Layers", y = "Predicted Brier Skill Score",
-       fill = "Credible interval") +
-  ggthemes::theme_clean() +
-  ggplot2::theme(legend.position = "bottom",
-        text=ggplot2::element_text(size=20), 
-        axis.text=ggplot2::element_text(size=20), 
-        axis.title=ggplot2::element_text(size=20), 
-        plot.title=ggplot2::element_text(size=20), 
-        legend.text=ggplot2::element_text(size=20), 
-        legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/layers_marginals.pdf", plot=layers_marginals, width=10, height=8)
-
-student_bayes_pred_inputs <- fit_bss |> 
-  tidybayes::epred_draws(newdata = marginal_grid) |> 
-  dplyr::group_by(inputsize, .draw) |> 
-  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
-
-inputs_marginals <- ggplot2::ggplot(student_bayes_pred_inputs, ggplot2::aes(x = inputsize, y = estimate)) +
-  ggdist::stat_lineribbon() + 
-  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
-  ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Input size", y = "Predicted Brier Skill Score",
-       fill = "Credible interval") +
-  ggthemes::theme_clean() +
-  ggplot2::theme(legend.position = "bottom",
-        text=ggplot2::element_text(size=20), 
-        axis.text=ggplot2::element_text(size=20), 
-        axis.title=ggplot2::element_text(size=20), 
-        plot.title=ggplot2::element_text(size=20), 
-        legend.text=ggplot2::element_text(size=20), 
-        legend.title=ggplot2::element_text(size=20))
-
-ggplot2::ggsave(file="plots/inputs_marginals.pdf", plot=inputs_marginals, width=10, height=8)
-
-
-sink("./results/regressions/student_regression.txt")
-
-cat("Fixed effects Beta On Brier Skill Score\n")
-
-summary(fit_brms_fixed)
+emm_input_gram <- emmeans::emtrends(beta_fit_interaction, specs = ~ grammartype, var = "inputsize")
+cat("\n=====  EMTREND: input size  =====\n")
+summary(emm_input_gram)
 
 sink()
-
-cat("Done!")
