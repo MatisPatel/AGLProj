@@ -185,7 +185,7 @@ plot <- ggplot2::ggplot(
   ggplot2::xlab("Grammar Type") +
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Architecture Type"))
 
-# save to PDF
+# save to pdf
 ggplot2::ggsave(
   filename = "plots/grammar_by_architecture_type_bar.pdf",
   plot     = plot,
@@ -418,50 +418,80 @@ ggplot2::ggsave(file="plots/grammar_by_layers.pdf", plot=plot, width=16, height=
 #################################################################################################################################
 # 2. Analysis
 
-cat("Running student regression...")
+cat("Running beta regression...")
 
 # 1. Prepare the data and model
 post_training_data_summarised_analysis = post_training_data_summarised |>
+  dplyr::mutate(
+    `Brier Skill Score` = (`Brier Skill Score` + 3) / 4, # Scale to [0, 1] for the regression
+    `Brier Skill Score` = ifelse(`Brier Skill Score` == 1, 0.99999, `Brier Skill Score`), # Ensure no negative values
+  ) |>
   dplyr::rename(
     Brier_Skill_Score = `Brier Skill Score`)
 
 model_beta <- brms::bf(
-  Brier_Skill_Score | trunc(ub = 1)  ~ neurons + 
+  Brier_Skill_Score ~ neurons + 
     laminations + 
     recurrence + 
     layers + 
     inputsize + 
-    grammartype)
+    grammartype,
+  phi ~ 1
+  )
 
-priors <- c(
-  # The data bulk lives near 0.85–1, so centre the intercept there.
-  # Heavy tails (df=3) allow for unexpected variation.
-  brms::prior(normal(0.9, 0.2), class = "Intercept"),
+cat("Plotting priors...\n")
 
-  # Slopes: still Normal(0, 1) on the outcome scale
-  brms::prior(normal(0, 1), class = "b"),
+beta_priors <- c(
+  brms::prior(normal(0, 0.5), class = "b"),                             # predictors are z-scored
+  brms::prior(normal(logit(0.96), 0.6), class = "Intercept"),           # most data is around this region
+  brms::prior(normal(log(20), 0.5), class = "Intercept", dpar = "phi")  # phi is the precision parameter, which we expect to be around 20
+)
 
-  # Residual scale: must be >0. The histogram shows most points within ~±0.3 of 0.9
-  brms::prior(cauchy(0, 0.3), class = "sigma", lb = 0),
+fit_prior <- brms::brm(
+  model_beta,
+  family = brms::Beta(link = "logit"),
+  data   = post_training_data_summarised_analysis,              # empty data
+  prior  = beta_priors,           # swap in a candidate set
+  sample_prior = "only",
+  iter   = 1000, chains = 1,
+  backend = "cmdstanr", seed = 1997
+)
 
-  # Degrees‑of‑freedom ν – let the tail be heavy if data say so,
-  # but start fairly “Student-ish”.
-  brms::prior(gamma(2, 0.2), class = "nu")   # mean 10, mode 6
+yrep <- brms::posterior_predict(fit_prior, draws = 20) * 4 - 3
+y_obs <- post_training_data_summarised_analysis$Brier_Skill_Score * 4 - 3
+
+prior_plot <- bayesplot::ppc_dens_overlay(
+  y    = y_obs,
+  yrep = yrep
+)
+
+ggplot2::ggsave(
+  filename = "plots/priors.pdf",
+  plot     = prior_plot,
+  width    = 5, height = 4,
+  dpi      = 300
 )
 
 # 2. Fit the model
 library(cmdstanr)
 options(mc.cores = parallel::detectCores())  # for cmdstanr
+cmdstanr::set_cmdstan_path()              
+Sys.setenv(STAN_NUM_THREADS = 1)
 
 fit_bss <- brms::brm(
-  model_beta, family = brms::student(),
+  model_beta, family = brms::Beta(),
   data   = post_training_data_summarised_analysis, chains = 4, cores = 4,
-  iter   = 2000, seed = 1997,
-  prior = priors,
-  control = list(adapt_delta = 0.98)
+  threads = brms::threading(3),
+  iter   = 1500, seed = 1997,
+  prior = beta_priors,
+  control = list(adapt_delta = 0.95),
+  backend  = "cmdstanr",
+  save_model = "model_saves/bss.stan"
 )
 
-saveRDS(fit_bss, "model_saves/student_t_regression.RDS")
+fit_bss  <- update(fit_bss, control = list(adapt_delta = 0.95), recompile = FALSE)
+
+saveRDS(fit_bss, "model_saves/beta_regression.RDS")
 
 
 # 3. Plot marginals
@@ -477,14 +507,14 @@ marginal_grid <- tidyr::expand_grid(
 student_bayes_pred_type <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(recurrence, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 model_type_marginals <- ggplot2::ggplot(student_bayes_pred_type, ggplot2::aes(x = estimate, y = recurrence, fill = recurrence)) +
   ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  # ggplot2::scale_x_continuous(limits = c(-3, 1)) +
+  ggplot2::scale_x_continuous(limits = c(-3, 1)) +
   ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
   ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Score", y = NULL,
+  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
        caption = "80% and 95% credible intervals shown in black") +
   ggthemes::theme_clean() + 
     ggplot2::theme(text=ggplot2::element_text(size=20), 
@@ -499,14 +529,14 @@ ggplot2::ggsave(file="plots/model_type_marginals.pdf", plot=model_type_marginals
 student_bayes_pred_grammars <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(grammartype, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 grammar_type_marginals <- ggplot2::ggplot(student_bayes_pred_grammars, ggplot2::aes(x = estimate, y = grammartype, fill = grammartype)) +
   ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  # ggplot2::scale_x_continuous(limits = c(0, 0.5)) +
+  ggplot2::scale_x_continuous(limits = c(0, 0.5)) +
   ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
   ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Score", y = NULL,
+  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
        caption = "80% and 95% credible intervals shown in black") +
   ggthemes::theme_clean() + 
     ggplot2::theme(text=ggplot2::element_text(size=20), 
@@ -521,14 +551,14 @@ ggplot2::ggsave(file="plots/grammars_marginals.pdf", plot=grammar_type_marginals
 student_bayes_pred_lams <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(laminations, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 laminations_marginals <- ggplot2::ggplot(student_bayes_pred_lams, ggplot2::aes(x = estimate, y = laminations, fill = laminations)) +
   ggdist::stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
-  # ggplot2::scale_x_continuous(limits = c(0, 0.5)) +
+  ggplot2::scale_x_continuous(limits = c(-3, 1)) +
   ggplot2::scale_fill_viridis_d(option = "plasma", end = 0.8) +
   ggplot2::guides(fill = "none") +
-  ggplot2::labs(x = "Predicted Brier Score", y = NULL,
+  ggplot2::labs(x = "Predicted Brier Skill Score", y = NULL,
                 caption = "80% and 95% credible intervals shown in black") +
   ggthemes::theme_clean() + 
   ggplot2::theme(text=ggplot2::element_text(size=20), 
@@ -543,13 +573,13 @@ ggplot2::ggsave(file="plots/laminations_marginals.pdf", plot=laminations_margina
 student_bayes_pred_neurs <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(neurons, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 neurons_marginals <- ggplot2::ggplot(student_bayes_pred_neurs, ggplot2::aes(x = neurons, y = estimate)) +
   ggdist::stat_lineribbon() + 
-  # ggplot2::scale_y_continuous(limits = c(0, 0.25)) +
+  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
   ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Number of Neurons", y = "Predicted Brier Score",
+  ggplot2::labs(x = "Number of Neurons", y = "Predicted Brier Skill Score",
        fill = "Credible interval") +
   ggthemes::theme_clean() +
   ggplot2::theme(legend.position = "bottom",
@@ -565,13 +595,13 @@ ggplot2::ggsave(file="plots/neurons_marginals.pdf", plot=neurons_marginals, widt
 student_bayes_pred_layers <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(layers, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 layers_marginals <- ggplot2::ggplot(student_bayes_pred_layers, ggplot2::aes(x = layers, y = estimate)) +
   ggdist::stat_lineribbon() + 
-  # ggplot2::scale_y_continuous(limits = c(0, 0.25)) +
+  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
   ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Number of Layers", y = "Predicted Brier Score",
+  ggplot2::labs(x = "Number of Layers", y = "Predicted Brier Skill Score",
        fill = "Credible interval") +
   ggthemes::theme_clean() +
   ggplot2::theme(legend.position = "bottom",
@@ -587,13 +617,13 @@ ggplot2::ggsave(file="plots/layers_marginals.pdf", plot=layers_marginals, width=
 student_bayes_pred_inputs <- fit_bss |> 
   tidybayes::epred_draws(newdata = marginal_grid) |> 
   dplyr::group_by(inputsize, .draw) |> 
-  dplyr::summarise(estimate = mean(.epred), .groups = "drop") # Average over marginals
+  dplyr::summarise(estimate = (mean(.epred) * 4) - 3, .groups = "drop") # Average over marginals
 
 inputs_marginals <- ggplot2::ggplot(student_bayes_pred_inputs, ggplot2::aes(x = inputsize, y = estimate)) +
   ggdist::stat_lineribbon() + 
-  ggplot2::scale_y_continuous(limits = c(0, 0.25)) +
+  ggplot2::scale_y_continuous(limits = c(-3, 1)) +
   ggplot2::scale_fill_brewer(palette = "Purples") +
-  ggplot2::labs(x = "Input size", y = "Predicted Brier Score",
+  ggplot2::labs(x = "Input size", y = "Predicted Brier Skill Score",
        fill = "Credible interval") +
   ggthemes::theme_clean() +
   ggplot2::theme(legend.position = "bottom",
@@ -609,7 +639,7 @@ ggplot2::ggsave(file="plots/inputs_marginals.pdf", plot=inputs_marginals, width=
 
 sink("./results/regressions/student_regression.txt")
 
-cat("Fixed effects Student-t Regression On Brier Skill Score\n")
+cat("Fixed effects Beta On Brier Skill Score\n")
 
 summary(fit_brms_fixed)
 
