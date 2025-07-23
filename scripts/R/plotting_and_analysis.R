@@ -1,7 +1,7 @@
 ############################################# Plotting and Analysis of Results ##################################################
 # Author: K. Voudouris
 # Project Title: AGLProj
-# R Version: 4.4.1
+# R Version: 4.5.1
 #################################################################################################################################
 
 # Script Outline
@@ -417,85 +417,342 @@ ggplot2::ggsave(file="plots/grammar_by_layers.pdf", plot=plot, width=16, height=
 
 #################################################################################################################################
 # 2. Analysis
+#################################################################################################################################
 
-# 1. Prepare the data and model
-post_training_data_summarised_analysis = post_training_data_summarised |>
+## 1.  Data prep  
+
+df <- post_training_data_summarised |>
   dplyr::mutate(
-    Brier_Skill_Score = (`Brier Skill Score` + 3) / 4, # Scale to [0, 1] for the regression
+    Brier_Skill_Score = (`Brier Skill Score` + 3) / 4,      # [0,1]
     Brier_Skill_Score = (Brier_Skill_Score * (dplyr::n() - 1) + 0.5) / dplyr::n(), # Apply Smithson-Verkuilen shrinkage to transform 0s and 1s.
-  ) 
+    inputsize = inputsize / 6
+  )
 
-form_beta_main <- Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype
+## 2.  Model specifications 
 
-sink("results/beta_regression_output.txt", split = TRUE)
+formulas <- list(
+  M0 = Brier_Skill_Score ~ recurrence + laminations + inputsize +
+    grammartype + neurons + layers,  # Basic model with only main effects and no phi modelling
+  M1 = Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # Basic model with only main effects and phi modelling
+  M2 = Brier_Skill_Score ~ recurrence*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between recurrence and grammartype
+  M3 = Brier_Skill_Score ~ laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between laminations and grammartype
+  M4 = Brier_Skill_Score ~ recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a polynomial term for input size
+  M5 = Brier_Skill_Score ~ recurrence*laminations + recurrence + laminations + inputsize + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between recurrence and laminations
+  M6 = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a two interaction terms of recurrence and lamination with grammartype
+  M7 = Brier_Skill_Score ~ recurrence*grammartype +laminations*grammartype + recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers | 
+    recurrence + laminations + inputsize + grammartype + neurons + layers # add in the polynomial input size term
+  )
 
-cat("Fitting Beta regression with no interactions...\n")
-beta_fit_main <- betareg::betareg(
-  form_beta_main,
-  data   = post_training_data_summarised_analysis,
-  link   = "logit",        # mean link
-  link.phi = "log",        # precision parameter
-  type   = "ML"            # maximum‑likelihood estimation
+
+## 3.  Fit all models (logit link)
+
+fits <- purrr::map(formulas, ~ betareg::betareg(.x, data = df, link = "logit"))
+
+## 4.  Collect fit statistics 
+
+fit_tbl <- purrr::map_dfr(fits, ~ broom::glance(.x), .id = "Model") |>
+  dplyr::select(Model, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
+
+## 5.  Likelihood Ratios
+
+ratios <- list(
+  "M0 vs. M1" = lmtest::lrtest(fits$M0, fits$M1),
+  "M0 vs. M2" = lmtest::lrtest(fits$M0, fits$M2),
+  "M0 vs. M3" = lmtest::lrtest(fits$M0, fits$M3),
+  "M0 vs. M4" = lmtest::lrtest(fits$M0, fits$M4),
+  "M0 vs. M5" = lmtest::lrtest(fits$M0, fits$M5),
+  "M0 vs. M6" = lmtest::lrtest(fits$M0, fits$M6),
+  "M0 vs. M7" = lmtest::lrtest(fits$M0, fits$M7),
+  "M1 vs. M2" = lmtest::lrtest(fits$M1, fits$M2),
+  "M1 vs. M3" = lmtest::lrtest(fits$M1, fits$M3),
+  "M1 vs. M4" = lmtest::lrtest(fits$M1, fits$M4),
+  "M1 vs. M5" = lmtest::lrtest(fits$M1, fits$M5),
+  "M1 vs. M6" = lmtest::lrtest(fits$M1, fits$M6),
+  "M1 vs. M7" = lmtest::lrtest(fits$M1, fits$M7),
+  "M6 vs. M7" = lmtest::lrtest(fits$M6, fits$M7)
 )
 
-cat("\n=====  Model summary  =====\n")
-print(summary(beta_fit_main))
+lr_progression <- purrr::imap_dfr(
+  ratios,                      # <-- your list of lrtest objects
+  ~ {
+    m <- as.data.frame(.x)     # lrtest → data‑frame
+    dplyr::tibble(
+      Comparison        = .y,                  # list name: "M0 vs. M1", …
+      `DF Small`          = m$`#Df`[1],          # parameters in smaller model
+      `DF Big`            = m$`#Df`[2],          # parameters in bigger  model
+      `Δdf`             = m$Df[2],             # difference in df (= test df)
+      `Log‑Likelihood Small`  = m$LogLik[1],         # log‑lik of smaller model
+      `Log‑Likelihood Big`  = m$LogLik[2],         # log‑lik of bigger model
+      Chisq             = m$Chisq[2],          # LR χ²
+      `p‑value`         = m$`Pr(>Chisq)`[2]    # p‑value
+    )
+  }
+) |>
+  dplyr::transmute(
+    Comparison = Comparison,
+    `Δdf` = `Δdf`,
+    `Δloglik` = `Log‑Likelihood Big` - `Log‑Likelihood Small`,
+    Chisq = Chisq,
+    `p‑value` = `p‑value`
+  )
 
-emm_rec <- emmeans::emmeans(beta_fit_main, ~ recurrence)
-cat("\n=====  EMMEANS: recurrence  =====\n")
-print(emm_rec)
+best_mod <- fits$M7
 
-cat("\n=====  Pairwise contrasts (recurrence) =====\n")
-print(pairs(emm_rec))
+## 6.  Compare link functions (logit vs log‑log) 
 
-emm_lams <- emmeans::emmeans(beta_fit_main, ~ laminations)
-cat("\n=====  EMMEANS: lamination  =====\n")
-print(emm_lams)
+# Now let's check if the link function is appropriate. \n 
+# Cribari-Neto and Lima (2007; A Misspecification Test for Beta Regressions)
+# suggest that loglog link can be better for handling extreme values close to 0 or 1, 
+# which we have in this data.
 
-cat("\n=====  Pairwise contrasts (lamination) =====\n")
-print(pairs(emm_lams))
-
-emm_gram <- emmeans::emmeans(beta_fit_main, ~ grammartype)
-cat("\n=====  EMMEANS: grammartype  =====\n")
-print(emm_gram)
-
-cat("\n=====  Pairwise contrasts (grammartype) =====\n")
-print(pairs(emm_gram))
-
-emm_input <- emmeans::emtrends(beta_fit_main, specs = ~ 1, var = "inputsize")
-cat("\n=====  EMTREND: input size  =====\n")
-summary(emm_input)
-
-form_beta_interaction <- Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype + (recurrence*grammartype) + (laminations*grammartype) + (inputsize*grammartype)
-
-cat("Fitting Beta regression with interactions with grammartype and laminations/recurrence...\n")
-beta_fit_interaction <- betareg::betareg(
-  form_beta_interaction,
-  data   = post_training_data_summarised_analysis,
-  link   = "logit",        # mean link
-  link.phi = "log",        # precision parameter
-  type   = "ML"            # maximum‑likelihood estimation
+M7_loglog <- betareg::betareg(
+  formulas$M7,
+  data = df, link = "loglog"
 )
 
-cat("\n=====  Model summary  =====\n")
-print(summary(beta_fit_interaction))
+link_tbl <- dplyr::bind_rows(
+  broom::glance(best_mod) |> dplyr::mutate(Model = "M7", Link = "logit"),
+  broom::glance(M7_loglog) |> dplyr::mutate(Model = "M7", Link = "loglog")
+) |>
+  dplyr::select(Model, Link, logLik, AIC, BIC, pseudo.r.squared)
 
-emm_rec_gram <- emmeans::emmeans(beta_fit_interaction, ~ recurrence * grammartype)
-cat("\n=====  EMMEANS: recurrence × grammartype  =====\n")
-print(emm_rec_gram)
+link_kable <- kableExtra::kable(link_tbl, digits = 3, caption = "Link‑function comparison for M7") |>
+  kableExtra::kable_styling(full_width = FALSE)
 
-cat("\n=====  Pairwise contrasts (recurrence)  =====\n")
-print(pairs(emm_rec_gram, by = "grammartype"))
+## 8.  Dispersion (phi) variants 
 
-emm_lams_gram <- emmeans::emmeans(beta_fit_interaction, ~ laminations * grammartype)
-cat("\n=====  EMMEANS: laminations × grammartype  =====\n")
-print(emm_lams_gram)
+M7_nophi <- betareg::betareg(
+  Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype +
+    poly(inputsize, 2) + recurrence + laminations +
+    grammartype + neurons + layers, # no phi sub-model
+  data = df, link = "logit"
+)
 
-cat("\n=====  Pairwise contrasts (laminations)  =====\n")
-print(pairs(emm_lams_gram, by = "grammartype"))
+phi_tbl <- dplyr::bind_rows(
+  broom::glance(best_mod) |> dplyr::mutate(Model = "M7 (dispersion φ sub-model)"),
+  broom::glance(M7_nophi) |> dplyr::mutate(Model = "M7 (φ constant)")
+) |>
+  dplyr::select(Model, logLik, AIC, BIC, pseudo.r.squared)
 
-emm_input_gram <- emmeans::emtrends(beta_fit_interaction, specs = ~ grammartype, var = "inputsize")
-cat("\n=====  EMTREND: input size  =====\n")
-summary(emm_input_gram)
+phi_kable <- kableExtra::kable(phi_tbl, digits = 3, caption = "Dispersion vs equi‑dispersion") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-sink()
+nophi_lrtest <- lmtest::lrtest(M7_nophi, best_mod)
+
+formulas_phi <- list(
+  "M7a" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
+    recurrence*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
+  "M7b" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
+    laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
+  "M7c" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
+    recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers,
+  "M7d" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
+    recurrence*grammartype + laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
+  "M7e" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
+    recurrence*grammartype + laminations*grammartype + recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers
+)
+
+fits_phi <- purrr::map(formulas_phi, ~ betareg::betareg(.x, data = df, link = "logit"))
+
+fits_phi$M7 <- best_mod
+
+fit_tbl_phi <- purrr::map_dfr(fits_phi, ~ broom::glance(.x), .id = "Model") |>
+  dplyr::select(Model, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
+
+kable_table_phi <- kableExtra::kable(fit_tbl_phi, digits = 3, caption = "Fit statistics for all candidate models") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+best_mod <- fits_phi$M7e # This is much better on AIC/BIC. Better R^2 for other models might indicate they are overfitting given their lower AIC/BIC scores.
+
+
+## 9.  Residual‑fan check 
+
+plot_resid <- function(mod){
+  plot <- ggplot2::ggplot(data.frame(fit = fitted(mod),
+                    res = residuals(mod, type = "deviance")),
+                  ggplot2::aes(fit, res)) +
+    ggplot2::geom_point(alpha = .25) +
+    ggplot2::geom_hline(yintercept = 0) +
+    ggplot2::labs(x = "Fitted", y = "Deviance residual") 
+  return(plot)
+}
+
+best_mod_residuals <- plot_resid(best_mod)
+ggplot2::ggsave("plots/best_model_dispersion.png")
+
+# Still some heteroskedasticity that doesn't seem to be being modelled by phi appropriately. Should be noted.
+
+## 10.  Cross‑validation 
+
+set.seed(1)
+fold_id <- sample(rep(1:5, length.out = nrow(df))) # shuffled ids for cv sampling
+
+cv_rmse <- purrr::map_dbl(1:5, function(f){
+  train <- df[fold_id != f, ]
+  test  <- df[fold_id == f, ]
+  mod   <- betareg::betareg(formulas_phi$M7e, data = train, link = "logit")
+  preds <- predict(mod, test) * 4 - 3
+  ModelMetrics::rmse(test$`Brier Skill Score`, preds)
+})
+
+cv_tbl <- dplyr::tibble(Fold = 1:5, RMSE = cv_rmse)
+
+cv_kable <- kableExtra::kable(cv_tbl, digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+## 11.  Final model summary & EMMs 
+
+emm_rec_gram <- emmeans::emmeans(best_mod, ~ recurrence * grammartype)
+emm_rec_gram_kable <- kableExtra::kable(as.data.frame(emm_rec_gram),
+      digits = 8, caption = "Recurrence × grammar‑type EMMs") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_gram_pairwise <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram, by = "grammartype")),
+      digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_gram_rec_pairwise <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram, by = "recurrence")),
+      digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_input <- emmeans::emmeans(best_mod, ~ inputsize,
+                     at   = list(inputsize = seq(1, 12, by = 1)),
+                     type = "response")
+
+inputsize_kabel <- kableExtra::kable(as.data.frame(emm_input), digits = 8,
+      caption = "Predicted mean Brier across input‑size grid") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+layers_tr <- emmeans::emtrends(best_mod, specs = ~ 1, var = "layers")
+layers_kable_table <- kableExtra::kable(as.data.frame(layers_tr), digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+neurons_tr <- emmeans::emtrends(best_mod, specs = ~ 1, var = "neurons")
+neurons_kable_table <- kableExtra::kable(as.data.frame(neurons_tr), digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+## 11.  Open Markdown sink 
+
+sink("results/regression_output.md")
+cat("# Beta‑Regression Model Selection Report\n\n")
+cat("*Generated on:", format(Sys.time(), "%Y‑%m‑%d %H:%M"), "*\n\n")
+
+cat("## Candidate models\n\n")
+cat("We fit eight nested or semi‑nested models, progressively adding interaction",
+    "terms and/or a quadratic effect of `inputsize`.\n\n")
+
+cat(
+  "Fitting the following models for model selection (with logit links)…\n\n",
+  paste(
+    names(formulas),
+    vapply(formulas, function(f) paste(deparse(f), collapse = ""), ""),
+    sep = ": ",
+    collapse = "\n\n"
+  ),
+  "\n"
+)
+
+kable_table <- kableExtra::kable(fit_tbl, digits = 3, caption = "Fit statistics for all candidate models") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+cat(kable_table, sep = "\n\n")
+
+cat("\n## Likelihood Ratios between nested models\n\n")
+
+lr_progression_table <- kableExtra::kable(lr_progression, digits = 8, caption = "Stepwise Likelihood Ratios (Wilks Tests)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+cat(lr_progression_table, sep = "\n\n")
+
+cat("\n**Model M7** has the lowest AIC/BIC overall, so we\n",
+    "treat it as the *current best* specification:\n\n")
+
+cat(paste(deparse(formulas$M7)))
+
+cat("\nNow let's check if the link function is appropriate. \n", 
+    "Cribari-Neto and Lima (2007; A Misspecification Test for Beta Regressions) ",
+    "suggest that loglog link can be better for handling extreme values close to 0 or 1, which we have in this data."
+)
+
+cat(link_kable, sep = "\n\n")
+
+cat("\nThe logit link appears to allow for a better fit, both on AIC/BIC and R^2.\n")
+
+cat("### Dispersion (phi-model) Tests\n\n")
+
+cat(phi_kable, sep = "\n\n")
+
+cat("\nWhile the pseudo-R^2 is much higher without modelling phi, the AIC/BIC is improved. We can use a likelihood-ratio test to confirm.\n")
+
+cat("A likelihood‑ratio test confirms the dispersion sub‑model is warranted (higher log-likelihood):\n\n")
+cat("```")
+print(nophi_lrtest)
+cat("```\n\n")
+
+cat("Let's check whether including interaction terms in the phi model improves fit:\n\n")
+
+cat(
+  "Fitting the following models for model selection (with logit links)...\n\n",
+  paste(
+    names(formulas_phi),
+    vapply(formulas_phi, function(f) paste(deparse(f), collapse = ""), ""),
+    sep = ": ",
+    collapse = "\n\n"
+  ),
+  "\n"
+)
+
+
+cat(kable_table_phi, sep = "\n\n")
+
+cat("M7e is much improved on AIC/BIC. The higher R^2 on the other models may indicate overfitting with no predictive gain. Hence, we proceed with M7e as the best model specification.\n\n")
+
+cat("\n### Residual fan plots  \n")
+cat("*(Plot saved separately as PNG file: `plots/resid_dispersion.png`\n\n")
+
+cat("There is still heteroskedasticity in the model, as indicated by the fan shape of the residuals. This should be noted, but also beta regression doesn't have well-defined residual checks.\n\n")
+
+cat("\n## Five‑fold cross‑validation (RMSE in Brier Skill Score units)\n\n")
+
+cat(cv_kable, sep = "\n\n")
+
+cat("\nMean RMSE:**", round(mean(cv_rmse), 4), "**\n\n")
+
+cat("\n# Final model\n M7e with dispersion modelling with interactions and logit link\n\n")
+cat("```")
+print(summary(best_mod))
+cat("```\n\n")
+
+cat("\n## Estimated marginal means (EMMs)\n\n")
+
+cat(emm_rec_gram_kable, sep = "\n\n")
+
+cat("\n### Pairwise contrasts (recurrence within each grammar)  \n\n")
+
+cat(emm_rec_gram_pairwise, sep = "\n\n")
+
+cat("\n### Pairwise contrasts (grammar within each recurrence)  \n\n")
+
+cat(emm_gram_rec_pairwise, sep = "\n\n")
+
+cat("\n## Continuous predictors\n\n")
+
+cat(inputsize_kabel, sep = "\n\n")
+
+cat("\n### Slope of layers\n\n")
+
+cat(layers_kable_table, sep = "\n\n")
+
+cat("\n### Slope of neurons\n\n")
+
+cat(neurons_kable_table, sep = "\n\n")
+
+cat("\n\n\n")
+
+sink()  # ---- CLOSE THE MARKDOWN FILE ----
