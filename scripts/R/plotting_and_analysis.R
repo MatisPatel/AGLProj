@@ -145,7 +145,7 @@ plot <- ggplot2::ggplot(
     geom     = "errorbar",
     position = ggplot2::position_dodge(width = 0.9),
     width    = 0.2,
-    size     = 0.7,
+    linewidth= 0.7,
     color    = "black"
   ) +
   # vertical dashed lines BETWEEN each grammar type
@@ -153,7 +153,7 @@ plot <- ggplot2::ggplot(
     xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
     linetype   = "dashed",
     color      = "grey80",
-    size       = 0.5,
+    linewidth  = 0.5,
     show.legend = FALSE
   ) +
   # annotate min_input at the base of each bar
@@ -185,9 +185,9 @@ plot <- ggplot2::ggplot(
   ggplot2::xlab("Grammar Type") +
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Architecture Type"))
 
-# save to pdf
+# save to svg
 ggplot2::ggsave(
-  filename = "plots/grammar_by_architecture_type_bar.pdf",
+  filename = "plots/grammar_by_architecture_type_bar.svg",
   plot     = plot,
   width    = 10,
   height   = 8
@@ -223,7 +223,7 @@ plot <- ggplot2::ggplot(
     geom     = "errorbar",
     position = ggplot2::position_dodge(width = 0.9),
     width    = 0.2,
-    size     = 0.7,
+    linewidth= 0.7,
     color    = "black"
   ) +
   # vertical dashed lines BETWEEN each grammar type
@@ -231,7 +231,7 @@ plot <- ggplot2::ggplot(
     xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
     linetype   = "dashed",
     color      = "grey80",
-    size       = 0.5,
+    linewidth  = 0.5,
     show.legend = FALSE
   ) +
   ggplot2::facet_grid(. ~ recurrence) +
@@ -249,7 +249,7 @@ plot <- ggplot2::ggplot(
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Input Size"))
 
 
-ggplot2::ggsave(file="plots/grammar_by_input_size.pdf", plot=plot, width=16, height=8)                                                                
+ggplot2::ggsave(file="plots/grammar_by_input_size.svg", plot=plot, width=16, height=8)                                                                
 
 
 cat("Plotting neurons...\n")
@@ -279,7 +279,7 @@ plot <- ggplot2::ggplot(
     geom     = "errorbar",
     position = ggplot2::position_dodge(width = 0.9),
     width    = 0.2,
-    size     = 0.7,
+    linewidth= 0.7,
     color    = "black"
   ) +
   # vertical dashed lines BETWEEN each grammar type
@@ -287,7 +287,7 @@ plot <- ggplot2::ggplot(
     xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
     linetype   = "dashed",
     color      = "grey80",
-    size       = 0.5,
+    linewidth  = 0.5,
     show.legend = FALSE
   ) +
   ggplot2::facet_grid(. ~ recurrence) +
@@ -305,7 +305,7 @@ plot <- ggplot2::ggplot(
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Neurons"))
 
 
-ggplot2::ggsave(file="plots/grammar_by_neurons.pdf", plot=plot, width=16, height=8)
+ggplot2::ggsave(file="plots/grammar_by_neurons.svg", plot=plot, width=16, height=8)
 
 cat("Plotting laminations...\n")
 
@@ -331,7 +331,7 @@ plot <- ggplot2::ggplot(
     geom     = "errorbar",
     position = ggplot2::position_dodge(width = 0.9),
     width    = 0.2,
-    size     = 0.7,
+    linewidth= 0.7,
     color    = "black"
   ) +
   # vertical dashed lines BETWEEN each grammar type
@@ -339,7 +339,7 @@ plot <- ggplot2::ggplot(
     xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
     linetype   = "dashed",
     color      = "grey80",
-    size       = 0.5,
+    linewidth  = 0.5,
     show.legend = FALSE
   ) +
   ggplot2::facet_grid(. ~ recurrence) +
@@ -357,7 +357,7 @@ plot <- ggplot2::ggplot(
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Lamination"))
 
 
-ggplot2::ggsave(file="plots/grammar_by_lamination.pdf", plot=plot, width=16, height=8)
+ggplot2::ggsave(file="plots/grammar_by_lamination.svg", plot=plot, width=16, height=8)
 
 cat("Plotting layers...\n")
 
@@ -386,7 +386,7 @@ plot <- ggplot2::ggplot(
     geom     = "errorbar",
     position = ggplot2::position_dodge(width = 0.9),
     width    = 0.2,
-    size     = 0.7,
+    linewidth= 0.7,
     color    = "black"
   ) +
   # vertical dashed lines BETWEEN each grammar type
@@ -394,7 +394,7 @@ plot <- ggplot2::ggplot(
     xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
     linetype   = "dashed",
     color      = "grey80",
-    size       = 0.5,
+    linewidth  = 0.5,
     show.legend = FALSE
   ) +
   ggplot2::facet_grid(. ~ recurrence) +
@@ -412,7 +412,7 @@ plot <- ggplot2::ggplot(
   ggplot2::guides(fill = ggplot2::guide_legend(title = "Layers"))
 
 
-ggplot2::ggsave(file="plots/grammar_by_layers.pdf", plot=plot, width=16, height=8)
+ggplot2::ggsave(file="plots/grammar_by_layers.svg", plot=plot, width=16, height=8)
  
 
 #################################################################################################################################
@@ -584,7 +584,7 @@ plot_resid <- function(mod){
 }
 
 best_mod_residuals <- plot_resid(best_mod)
-ggplot2::ggsave("plots/best_model_dispersion.png")
+ggplot2::ggsave("plots/best_model_dispersion.svg")
 
 # Still some heteroskedasticity that doesn't seem to be being modelled by phi appropriately. Should be noted.
 
@@ -714,7 +714,7 @@ cat(kable_table_phi, sep = "\n\n")
 cat("M7e is much improved on AIC/BIC. The higher R^2 on the other models may indicate overfitting with no predictive gain. Hence, we proceed with M7e as the best model specification.\n\n")
 
 cat("\n### Residual fan plots  \n")
-cat("*(Plot saved separately as PNG file: `plots/resid_dispersion.png`\n\n")
+cat("*(Plot saved separately as svg file: `plots/resid_dispersion.svg`\n\n")
 
 cat("There is still heteroskedasticity in the model, as indicated by the fan shape of the residuals. This should be noted, but also beta regression doesn't have well-defined residual checks.\n\n")
 
