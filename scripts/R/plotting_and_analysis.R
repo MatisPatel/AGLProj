@@ -31,6 +31,84 @@ database.connect <- function(csv.name, dbPort = 3306){
     return(myDB)
 }
 
+# general plotter with mean ± CI
+plot_results <- function(data,
+                             y,                 # string – column to plot on the y‑axis
+                             colour,            # string – column that defines colour / legend
+                             facet = NULL,      # string (optional) – column for facet_grid
+                             x_levels = c("SL","LT","LTT","LTTO","MSO","CF","CS"),
+                             ci = 0.99,         # width of the normal‑theory CI
+                             xlab = "Grammar Type",
+                             ylab = NULL,       # defaults to `y` if missing
+                             col_lab = NULL,   # defaults to `fill` if missing
+                             facet_lab = NULL,  # defaults to `facet` if missing
+                             file = NULL,       # file name to save (NULL → don’t save)
+                             width = 16,
+                             height = 8) {
+  
+  ## convert strings → symbols for tidy‑eval
+  xsym   <- rlang::sym("grammartype")
+  ysym   <- rlang::sym(y)
+  csym   <- rlang::sym(colour)
+  facet_sym <- if (!is.null(facet)) rlang::sym(facet) else NULL
+  
+  ## build the plot -----------------------------------------------------------
+  p <- ggplot2::ggplot(data, ggplot2::aes(x = factor(!!xsym, levels = x_levels),
+                        y = !!ysym,
+                        col = !!csym)) +
+    
+    # 1) bar = mean
+    # ggplot2::geom_bar(stat = "summary",
+    #          fun  = "mean",
+    #          position = ggplot2::position_dodge(width = 0.9),
+    #          width = 0.8
+    #          ) +
+    ggplot2::stat_summary(fun = mean,
+                 geom = "point",
+                 size = 3,
+                 position = ggplot2::position_dodge(width = 0.9)) +
+    
+    # 2) error bar = mean +- CI
+    ggplot2::stat_summary(fun.data = ggplot2::mean_cl_boot,
+                 fun.args = list(conf.int = ci),
+                 geom = "errorbar",
+                 position = ggplot2::position_dodge(width = 0.9),
+                 width = 0.2,
+                 linewidth = 0.7) +
+    
+    # dashed separators between grammar categories
+    ggplot2::geom_vline(xintercept = seq(1.5, length(x_levels) - 0.5, by = 1),
+               linetype = "dashed",
+               colour = "grey80",
+               linewidth = 0.5,
+               show.legend = FALSE)
+  
+    ## add facets, if requested
+    if (!is.null(facet_sym)) {
+      p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym))
+    }
+
+    # theme and labels
+    p <- p + ggplot2::theme_minimal(base_size = 20) +
+    ggplot2::theme(
+      axis.text.x      = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 0.5),
+      panel.grid.major = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.border     = ggplot2::element_rect(colour = "grey80", fill = NA, linewidth = 0.5),
+      panel.spacing    = grid::unit(1, "lines"),
+      legend.text      = ggplot2::element_text(size = 20),
+      legend.title     = ggplot2::element_text(size = 20)
+    ) +
+    ggplot2::xlab(xlab) +
+    ggplot2::ylab(if (is.null(ylab)) y else ylab) +
+    ggplot2::guides(colour = ggplot2::guide_legend(title = if (is.null(col_lab) ) colour else col_lab))
+  
+  ## save, if asked -----------------------------------------------------------
+  if (!is.null(file)) ggplot2::ggsave(filename = file, plot = p, width = width, height = height)
+  
+  return(p)
+}
+
 settings <- yaml::read_yaml(paste0("./src/settings.yaml"))
 
 recollect_database_data <- FALSE
@@ -87,6 +165,9 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
     write.csv(post_training_data_summarised, "data/data_summary.csv", row.names = FALSE)
 
     DBI::dbDisconnect(myDB)
+    
+    post_training_data_summarised <- post_training_data_summarised |>
+      dplyr::mutate(factor(inputsize/6, levels = c(1:12)))
 
 } else {
     cat("Loading data from file...\n")
@@ -97,7 +178,8 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
                     `Brier Skill Score` = `Brier.Skill.Score`) |>
       dplyr::mutate(recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
                     laminations = factor(laminations, levels = c("Dense", "Laminated")),
-                    grammartype = factor(grammartype, levels = c("SL", "LT", "LTT", "LTTO", "MSO", "CS", "CF")))
+                    grammartype = factor(grammartype, levels = c("SL", "LT", "LTT", "LTTO", "MSO", "CS", "CF")),
+                    inputsize = factor(inputsize/6, levels = c(1:12)))
 
 }
 
@@ -106,379 +188,215 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
 #################################################################################################################################
 # 1. Plotting
 
-cat("Plotting architecture averages...\n")
+cat("Plotting architecture means...\n")
 
-post_training_data_summarised_architecture <- post_training_data_summarised |>
-  dplyr::group_by(grammartype, recurrence, inputsize) |>
-  dplyr::mutate(mean.brier = mean(`Brier Skill Score`)) |>
-  dplyr::ungroup() |> dplyr::group_by(grammartype, recurrence) |>
-  dplyr::filter(inputsize == inputsize[which.max(mean.brier)]) |>
-  dplyr::ungroup()
-
-# define the exact order of grammar types
-levels_vec <- c("SL", "LT", "LTT", "LTTO", "MSO", "CF", "CS")
-
-max_sizes <- post_training_data_summarised_architecture |>
-  dplyr::group_by(recurrence, grammartype) |>
-  dplyr::summarise(
-    max_input = max(inputsize)/6,
-    .groups   = "drop"
-  )
-
-# build the bar‐chart with mean, median, and 95% CI
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised_architecture,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = recurrence
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  # annotate min_input at the base of each bar
-  ggplot2::geom_text(
-    data     = max_sizes,
-    mapping  = ggplot2::aes(
-      x     = factor(grammartype, levels = levels_vec),
-      y     = 0.05,
-      label = max_input,
-      group = recurrence
-    ),
-    position = ggplot2::position_dodge(width = 0.9),
-    vjust    = 1.5,
-    color    = "white",
-    size     = 5
-  ) +
-  # facets and theme
-  # ggplot2::facet_grid(. ~ laminations) +
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Architecture Type"))
-
-# save to svg
-ggplot2::ggsave(
-  filename = "plots/grammar_by_architecture_type_bar.svg",
-  plot     = plot,
-  width    = 10,
-  height   = 8
+plot_results(
+  post_training_data_summarised,
+  y     = "Brier Skill Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_point_brier_skill_score.svg",
+  width = 15, height = 8
 )
 
+plot_results(
+  post_training_data_summarised,
+  y     = "Brier Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_point_brier_score_raw.svg",
+  width = 15, height = 8
+)
 
-post_training_data_summarised_architecture_all <- post_training_data_summarised |>
-  dplyr::group_by(grammartype, recurrence)
+plot_results(
+  post_training_data_summarised,
+  y     = "Inverse Brier Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_point_brier_score_inverse.svg",
+  width = 15, height = 8
+)
 
-# build the bar‐chart with mean, median, and 95% CI
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised_architecture_all,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = recurrence
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  # facets and theme
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Architecture Type"))
-
-# save to svg
-ggplot2::ggsave(
-  filename = "plots/grammar_by_architecture_type_bar_all.svg",
-  plot     = plot,
-  width    = 15,
-  height   = 8
+plot_results(
+  post_training_data_summarised,
+  y     = "Proportion Correct",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_point_proportion.svg",
+  width = 15, height = 8
 )
 
 cat("Plotting input sizes...\n")
 
-post_training_data_summarised_inputs <- post_training_data_summarised |>
-  dplyr::filter(recurrence != "FFN") |>
-  dplyr::group_by(grammartype, inputsize, recurrence) |>
-  dplyr::mutate(inputsize = factor(inputsize/6, levels = c(1:12)))
+plot_results(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  y     = "Brier Skill Score",
+  colour  = "inputsize",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/grammar_by_input_size_point_brier_skill_score.svg",
+  width = 16, height = 8
+)
 
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised_inputs,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = inputsize
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  ggplot2::facet_grid(. ~ recurrence) +
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Input Size")) 
+plot_results(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  y     = "Brier Score",
+  colour  = "inputsize",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/grammar_by_input_size_point_brier_score_raw.svg",
+  width = 16, height = 8
+)
 
+plot_results(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  y     = "Inverse Brier Score",
+  colour  = "inputsize",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/grammar_by_input_size_point_brier_score_inverse.svg",
+  width = 16, height = 8
+)
 
-ggplot2::ggsave(file="plots/grammar_by_input_size.svg", 
-                plot=plot, 
-                width=16, 
-                height=8)                                                                
-
+plot_results(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  y     = "Proportion Correct",
+  colour  = "inputsize",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/grammar_by_input_size_point_proportion.svg",
+  width = 16, height = 8
+)
 
 cat("Plotting neurons...\n")
 
-post_training_data_summarised_neurons <- post_training_data_summarised |>
-  dplyr::mutate(neurons = factor(neurons, levels  = seq(32, 512, 32)))
+plot_results(
+  dplyr::mutate(post_training_data_summarised, 
+                neurons = factor(neurons, levels = seq(32, 512, 32))),
+  y     = "Brier Skill Score",
+  colour  = "neurons",
+  facet = "recurrence",
+  col_lab = "Neurons",
+  file  = "plots/grammar_by_neurons_point_brier_skill_score.svg",
+  width = 24, height = 8
+)
 
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised_neurons,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = neurons
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  ggplot2::facet_grid(. ~ recurrence) +
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Neurons"))
+plot_results(
+  dplyr::mutate(post_training_data_summarised, 
+                neurons = factor(neurons, levels = seq(32, 512, 32))),
+  y     = "Brier Score",
+  colour  = "neurons",
+  facet = "recurrence",
+  col_lab = "Neurons",
+  file  = "plots/grammar_by_neurons_point_brier_score_raw.svg",
+  width = 24, height = 8
+)
 
+plot_results(
+  dplyr::mutate(post_training_data_summarised, 
+                neurons = factor(neurons, levels = seq(32, 512, 32))),
+  y     = "Inverse Brier Score",
+  colour  = "neurons",
+  facet = "recurrence",
+  col_lab = "Neurons",
+  file  = "plots/grammar_by_neurons_point_brier_score_inverse.svg",
+  width = 24, height = 8
+)
 
-ggplot2::ggsave(file="plots/grammar_by_neurons.svg", plot=plot, width=16, height=8)
+plot_results(
+  dplyr::mutate(post_training_data_summarised, 
+                neurons = factor(neurons, levels = seq(32, 512, 32))),
+  y     = "Proportion Correct",
+  colour  = "neurons",
+  facet = "recurrence",
+  col_lab = "Neurons",
+  file  = "plots/grammar_by_neurons_point_proportion.svg",
+  width = 24, height = 8
+)
 
 cat("Plotting laminations...\n")
 
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = laminations
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  ggplot2::facet_grid(. ~ recurrence) +
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Lamination"))
+plot_results(
+  post_training_data_summarised,
+  y     = "Brier Skill Score",
+  colour  = "laminations",
+  facet = "recurrence",
+  col_lab = "Laminations",
+  file  = "plots/grammar_by_laminations_point_brier_skill_score.svg",
+  width = 24, height = 8
+)
 
+plot_results(
+  post_training_data_summarised,
+  y     = "Brier Score",
+  colour  = "laminations",
+  facet = "recurrence",
+  col_lab = "Laminations",
+  file  = "plots/grammar_by_laminations_point_brier_score_raw.svg",
+  width = 24, height = 8
+)
 
-ggplot2::ggsave(file="plots/grammar_by_lamination.svg", plot=plot, width=16, height=8)
+plot_results(
+  post_training_data_summarised,
+  y     = "Inverse Brier Score",
+  colour  = "laminations",
+  facet = "recurrence",
+  col_lab = "Laminations",
+  file  = "plots/grammar_by_laminations_point_brier_score_inverse.svg",
+  width = 24, height = 8
+)
+
+plot_results(
+  post_training_data_summarised,
+  y     = "Proportion Correct",
+  colour  = "laminations",
+  facet = "recurrence",
+  col_lab = "Laminations",
+  file  = "plots/grammar_by_laminations_point_proportion.svg",
+  width = 24, height = 8
+)
 
 cat("Plotting layers...\n")
 
-post_training_data_summarised_layers <- post_training_data_summarised |>
-  dplyr::mutate(layers = factor(layers, levels  = c(1:3)))
+plot_results(
+  dplyr::mutate(post_training_data_summarised, layers = factor(layers, levels = c(1:3))),
+  y     = "Brier Skill Score",
+  colour  = "layers",
+  facet = "recurrence",
+  col_lab = "Layers",
+  file  = "plots/grammar_by_layers_point_brier_skill_score.svg",
+  width = 24, height = 8
+)
 
-plot <- ggplot2::ggplot(
-  data = post_training_data_summarised_layers,
-  mapping = ggplot2::aes(
-    x    = factor(grammartype, levels = levels_vec),
-    y    = `Brier Skill Score`,
-    fill = layers
-  )
-) +
-  # 1) bars = mean
-  ggplot2::geom_bar(
-    stat     = "summary",
-    fun      = "mean",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.8
-  ) +
-  # 2) errorbars = 95% normal‐theory CI around the mean
-  ggplot2::stat_summary(
-    fun.data = ggplot2::mean_cl_normal,
-    fun.args = list(conf.int = 0.95),
-    geom     = "errorbar",
-    position = ggplot2::position_dodge(width = 0.9),
-    width    = 0.2,
-    linewidth= 0.7,
-    color    = "black"
-  ) +
-  # vertical dashed lines BETWEEN each grammar type
-  ggplot2::geom_vline(
-    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
-    linetype   = "dashed",
-    color      = "grey80",
-    linewidth  = 0.5,
-    show.legend = FALSE
-  ) +
-  ggplot2::facet_grid(. ~ recurrence) +
-  ggplot2::theme_minimal(base_size = 20) +
-  ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.grid.major  = ggplot2::element_blank(),
-    panel.grid.minor  = ggplot2::element_blank(),
-    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
-    panel.spacing     = grid::unit(1, "lines"),
-    legend.text       = ggplot2::element_text(size = 20),
-    legend.title      = ggplot2::element_text(size = 20)
-  ) +
-  ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Layers"))
+plot_results(
+  dplyr::mutate(post_training_data_summarised, layers = factor(layers, levels = c(1:3))),
+  y     = "Brier Score",
+  colour  = "layers",
+  facet = "recurrence",
+  col_lab = "Layers",
+  file  = "plots/grammar_by_layers_point_brier_score_raw.svg",
+  width = 24, height = 8
+)
 
+plot_results(
+  dplyr::mutate(post_training_data_summarised, layers = factor(layers, levels = c(1:3))),
+  y     = "Inverse Brier Score",
+  colour  = "layers",
+  facet = "recurrence",
+  col_lab = "Layers",
+  file  = "plots/grammar_by_layers_point_brier_score_inverse.svg",
+  width = 24, height = 8
+)
 
-ggplot2::ggsave(file="plots/grammar_by_layers.svg", plot=plot, width=16, height=8)
- 
+plot_results(
+  dplyr::mutate(post_training_data_summarised, layers = factor(layers, levels = c(1:3))),
+  y     = "Proportion Correct",
+  colour  = "layers",
+  facet = "recurrence",
+  col_lab = "Layers",
+  file  = "plots/grammar_by_layers_point_proportion.svg",
+  width = 24, height = 8
+)
 
 #################################################################################################################################
 # 2. Analysis
