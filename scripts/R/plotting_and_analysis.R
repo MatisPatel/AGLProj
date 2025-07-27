@@ -194,6 +194,65 @@ ggplot2::ggsave(
 )
 
 
+post_training_data_summarised_architecture_all <- post_training_data_summarised |>
+  dplyr::group_by(grammartype, recurrence)
+
+# build the bar‐chart with mean, median, and 95% CI
+plot <- ggplot2::ggplot(
+  data = post_training_data_summarised_architecture_all,
+  mapping = ggplot2::aes(
+    x    = factor(grammartype, levels = levels_vec),
+    y    = `Brier Skill Score`,
+    fill = recurrence
+  )
+) +
+  # 1) bars = mean
+  ggplot2::geom_bar(
+    stat     = "summary",
+    fun      = "mean",
+    position = ggplot2::position_dodge(width = 0.9),
+    width    = 0.8
+  ) +
+  # 2) errorbars = 95% normal‐theory CI around the mean
+  ggplot2::stat_summary(
+    fun.data = ggplot2::mean_cl_normal,
+    fun.args = list(conf.int = 0.95),
+    geom     = "errorbar",
+    position = ggplot2::position_dodge(width = 0.9),
+    width    = 0.2,
+    linewidth= 0.7,
+    color    = "black"
+  ) +
+  # vertical dashed lines BETWEEN each grammar type
+  ggplot2::geom_vline(
+    xintercept = seq(1.5, length(levels_vec) - 0.5, by = 1),
+    linetype   = "dashed",
+    color      = "grey80",
+    linewidth  = 0.5,
+    show.legend = FALSE
+  ) +
+  # facets and theme
+  ggplot2::theme_minimal(base_size = 20) +
+  ggplot2::theme(
+    axis.text.x       = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 1),
+    panel.grid.major  = ggplot2::element_blank(),
+    panel.grid.minor  = ggplot2::element_blank(),
+    panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
+    panel.spacing     = grid::unit(1, "lines"),
+    legend.text       = ggplot2::element_text(size = 20),
+    legend.title      = ggplot2::element_text(size = 20)
+  ) +
+  ggplot2::xlab("Grammar Type") +
+  ggplot2::guides(fill = ggplot2::guide_legend(title = "Architecture Type"))
+
+# save to svg
+ggplot2::ggsave(
+  filename = "plots/grammar_by_architecture_type_bar_all.svg",
+  plot     = plot,
+  width    = 15,
+  height   = 8
+)
+
 cat("Plotting input sizes...\n")
 
 post_training_data_summarised_inputs <- post_training_data_summarised |>
@@ -237,7 +296,7 @@ plot <- ggplot2::ggplot(
   ggplot2::facet_grid(. ~ recurrence) +
   ggplot2::theme_minimal(base_size = 20) +
   ggplot2::theme(
-    axis.text.x       = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.x       = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 1),
     panel.grid.major  = ggplot2::element_blank(),
     panel.grid.minor  = ggplot2::element_blank(),
     panel.border      = ggplot2::element_rect(color = "grey80", fill = NA, linewidth = 0.5),
@@ -246,10 +305,13 @@ plot <- ggplot2::ggplot(
     legend.title      = ggplot2::element_text(size = 20)
   ) +
   ggplot2::xlab("Grammar Type") +
-  ggplot2::guides(fill = ggplot2::guide_legend(title = "Input Size"))
+  ggplot2::guides(fill = ggplot2::guide_legend(title = "Input Size")) 
 
 
-ggplot2::ggsave(file="plots/grammar_by_input_size.svg", plot=plot, width=16, height=8)                                                                
+ggplot2::ggsave(file="plots/grammar_by_input_size.svg", 
+                plot=plot, 
+                width=16, 
+                height=8)                                                                
 
 
 cat("Plotting neurons...\n")
