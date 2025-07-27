@@ -62,9 +62,11 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
     cat("Summarising...\n")
 
     post_training_data_summarised <- post_training_data |>
-      dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2)) |>
+      dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2),
+                    correct_binary = (posttrainprobs >= 0.5) == error) |>
       dplyr::group_by(grammarid, modelid, kgrams, grammarsubtype, neurons, layers, inputsize, laminations, recurrence, gru) |>
-      dplyr::summarise(`Brier Score` = sum(root_squared_error)/dplyr::n()) |>
+      dplyr::summarise(`Brier Score` = sum(root_squared_error)/dplyr::n(),
+                      `Proportion Correct` = sum(correct_binary)/dplyr::n()) |>
       dplyr::mutate(`Inverse Brier Score` = 1.0 - `Brier Score`,
                     recurrence = ifelse(recurrence == 0, "FFN",
                                 ifelse(gru == 1, "GRU", "RNN")),
@@ -89,13 +91,14 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
 } else {
     cat("Loading data from file...\n")
     post_training_data_summarised <- read.csv("data/data_summary.csv", stringsAsFactors = FALSE) |>
-      dplyr::rename(`Brier Score` = `Brier.Score`) |>
-      dplyr::mutate(`Brier Score` = `Brier Score`,
-                    `Inverse Brier Score` = 1.0 - `Brier Score`,
-                    recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
+      dplyr::rename(`Brier Score` = `Brier.Score`,
+                    `Inverse Brier Score` = `Inverse.Brier.Score`,
+                    `Proportion Correct` = `Proportion.Correct`,
+                    `Brier Skill Score` = `Brier.Skill.Score`) |>
+      dplyr::mutate(recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
                     laminations = factor(laminations, levels = c("Dense", "Laminated")),
-                    grammartype = factor(grammartype, levels = c("SL", "LT", "LTT", "LTTO", "MSO", "CS", "CF")),
-                    `Brier Skill Score` = 1.0 - (`Brier Score` / 0.25))
+                    grammartype = factor(grammartype, levels = c("SL", "LT", "LTT", "LTTO", "MSO", "CS", "CF")))
+
 }
 
 
