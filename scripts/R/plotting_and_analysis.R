@@ -167,7 +167,7 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
     DBI::dbDisconnect(myDB)
     
     post_training_data_summarised <- post_training_data_summarised |>
-      dplyr::mutate(factor(inputsize/6, levels = c(1:12)))
+      dplyr::mutate(inputsize/6)
 
 } else {
     cat("Loading data from file...\n")
@@ -179,7 +179,7 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
       dplyr::mutate(recurrence = factor(recurrence, levels = c("FFN", "RNN", "GRU")),
                     laminations = factor(laminations, levels = c("Dense", "Laminated")),
                     grammartype = factor(grammartype, levels = c("SL", "LT", "LTT", "LTTO", "MSO", "CS", "CF")),
-                    inputsize = factor(inputsize/6, levels = c(1:12)))
+                    inputsize = inputsize/6)
 
 }
 
@@ -402,67 +402,148 @@ plot_results(
 # 2. Analysis
 #################################################################################################################################
 
-## 1.  Data prep  
+## 0.  Reformat data set for ease of use
+
+sv_shrinkage <- 0.5 # Smithson-Verkuilen shrinkage factor (default setting)
 
 df <- post_training_data_summarised |>
-  dplyr::mutate(
-    Brier_Skill_Score = (`Brier Skill Score` + 3) / 4,      # [0,1]
-    Brier_Skill_Score = (Brier_Skill_Score * (dplyr::n() - 1) + 0.5) / dplyr::n(), # Apply Smithson-Verkuilen shrinkage to transform 0s and 1s.
-    inputsize = inputsize / 6
-  )
+  dplyr::mutate(Inverse_Brier_Score = (`Inverse Brier Score` * (dplyr::n() - 1) + sv_shrinkage) / dplyr::n(), # Apply S-V shrinkage. Fitting extended beta models takes too long.
+                Proportion_Correct = (`Proportion Correct` * (dplyr::n() - 1) + sv_shrinkage) / dplyr::n()) # Apply S-V shrinkage. Fitting extended beta models takes too long.
 
-## 2.  Model specifications 
+future::plan(strategy = future::multisession,
+             workers = parallel::detectCores() - 1) # Plan for multisession
 
-formulas <- list(
-  M0 = Brier_Skill_Score ~ recurrence + laminations + inputsize +
-    grammartype + neurons + layers,  # Basic model with only main effects and no phi modelling
-  M1 = Brier_Skill_Score ~ recurrence + laminations + inputsize + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # Basic model with only main effects and phi modelling
-  M2 = Brier_Skill_Score ~ recurrence*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between recurrence and grammartype
-  M3 = Brier_Skill_Score ~ laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between laminations and grammartype
-  M4 = Brier_Skill_Score ~ recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a polynomial term for input size
-  M5 = Brier_Skill_Score ~ recurrence*laminations + recurrence + laminations + inputsize + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a single interaction between recurrence and laminations
-  M6 = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers, # introduce a two interaction terms of recurrence and lamination with grammartype
-  M7 = Brier_Skill_Score ~ recurrence*grammartype +laminations*grammartype + recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers | 
-    recurrence + laminations + inputsize + grammartype + neurons + layers # add in the polynomial input size term
-  )
+## 1.  Define useful functions
+
+# Cross-validation function
+
+compute_cv_block_parallel <- function(df, formulas, response_name,
+                                      link_fun = "logit", k = 5) {
+  
+  # map over models in parallel
+  cv_list <- furrr::future_imap(formulas, function(form, mod_name) {
+    
+    # generate fold ids once per model (so each model sees identical splits)
+    set.seed(1)
+    fold_id <- sample(rep(1:k, length.out = nrow(df)))
+    df$fold_id <- fold_id
+    
+    # map over folds in parallel as well (nested futures are OK)
+    rmse_vec <- furrr::future_map_dbl(1:k, function(f) {
+      train <- df[ fold_id != f, ]
+      test  <- df[ fold_id == f, ]
+      
+      mod   <- betareg::betareg(form, data = train, link = link_fun)
+      preds <- predict(mod, test)
+      
+      ModelMetrics::rmse(test[[response_name]], preds)
+    }, .options = furrr::furrr_options(seed = 1))
+    
+    dplyr::tibble(Fold = 1:k, RMSE = rmse_vec, Model = mod_name)
+  }, .options = furrr::furrr_options(seed = 1), .progress = TRUE)
+  
+  output <- dplyr::bind_rows(cv_list) |>
+    tidyr::pivot_wider(names_from = Model,
+                values_from = RMSE,
+                names_prefix = "RMSE ")
+  
+  means <- output |>
+    dplyr::summarise(across(-Fold, mean)) |>
+    dplyr::mutate(Fold = "Mean", .before = 1)    
+  
+  output_tibble <- output |>
+    dplyr::mutate(Fold = as.character(Fold)) |>
+    dplyr::bind_rows(means)
+  
+  return(output_tibble)
+}
+
+# Residuals plotter
+
+plot_resid <- function(mod){
+  plot <- ggplot2::ggplot(data.frame(fit = fitted(mod),
+                                     res = residuals(mod, type = "deviance")),
+                          ggplot2::aes(fit, res)) +
+    ggplot2::geom_point(alpha = .25) +
+    ggplot2::geom_hline(yintercept = 0) +
+    ggplot2::labs(x = "Fitted", y = "Deviance residual") 
+  return(plot)
+}
+
+
+## 2.  Model specifications, starting with the maximal model, keeping phi model as all main effects for now
+
+formulas_inverse_brier <- list(
+  M1 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model
+  M2 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without recurrence:laminations
+  M3 = Inverse_Brier_Score ~ recurrence:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without laminations:grammartype
+  M4 = Inverse_Brier_Score ~ laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without recurrence:grammartype
+  M5 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without inputsize:grammartype
+  M6 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without layers
+  M7 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without neurons
+  M8 = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype|
+    recurrence + laminations + inputsize + grammartype + neurons + layers # maximal model without layers and neurons
+)
+
+formulas_proportion <- list(
+  M1 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model
+  M2 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without recurrence:laminations
+  M3 = Proportion_Correct ~ recurrence:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without laminations:grammartype
+  M4 = Proportion_Correct ~ laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without recurrence:grammartype
+  M5 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without inputsize:grammartype
+  M6 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without layers
+  M7 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + layers |
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # maximal model without neurons
+  M8 = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype|
+    recurrence + laminations + inputsize + grammartype + neurons + layers # maximal model without layers and neurons
+)
 
 
 ## 3.  Fit all models (logit link)
 
-fits <- purrr::map(formulas, ~ betareg::betareg(.x, data = df, link = "logit"))
+fits_inverse_brier <- furrr::future_map(formulas_inverse_brier, ~ betareg::betareg(.x, data = df, link = "logit"), .progress = TRUE)
+
+fits_proportion <- furrr::future_map(formulas_proportion, ~ betareg::betareg(.x, data = df, link = "logit"), .progress = TRUE)
 
 ## 4.  Collect fit statistics 
 
-fit_tbl <- purrr::map_dfr(fits, ~ broom::glance(.x), .id = "Model") |>
+fit_inverse_brier_tbl <- purrr::map_dfr(fits_inverse_brier, ~ broom::glance(.x), .id = "Model") |>
   dplyr::select(Model, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
 
-## 5.  Likelihood Ratios
+fit_proportion_tbl <- purrr::map_dfr(fits_proportion, ~ broom::glance(.x), .id = "Model") |>
+  dplyr::select(Model, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
 
-ratios <- list(
-  "M0 vs. M1" = lmtest::lrtest(fits$M0, fits$M1),
-  "M0 vs. M2" = lmtest::lrtest(fits$M0, fits$M2),
-  "M0 vs. M3" = lmtest::lrtest(fits$M0, fits$M3),
-  "M0 vs. M4" = lmtest::lrtest(fits$M0, fits$M4),
-  "M0 vs. M5" = lmtest::lrtest(fits$M0, fits$M5),
-  "M0 vs. M6" = lmtest::lrtest(fits$M0, fits$M6),
-  "M0 vs. M7" = lmtest::lrtest(fits$M0, fits$M7),
-  "M1 vs. M2" = lmtest::lrtest(fits$M1, fits$M2),
-  "M1 vs. M3" = lmtest::lrtest(fits$M1, fits$M3),
-  "M1 vs. M4" = lmtest::lrtest(fits$M1, fits$M4),
-  "M1 vs. M5" = lmtest::lrtest(fits$M1, fits$M5),
-  "M1 vs. M6" = lmtest::lrtest(fits$M1, fits$M6),
-  "M1 vs. M7" = lmtest::lrtest(fits$M1, fits$M7),
-  "M6 vs. M7" = lmtest::lrtest(fits$M6, fits$M7)
+cv_inverse_brier <- compute_cv_block_parallel(df, formulas_inverse_brier, "Inverse_Brier_Score", link_fun = "logit", k = 5)
+cv_proportion <- compute_cv_block_parallel(df, formulas_inverse_brier, "Proportion Correct", link_fun = "logit", k = 5)
+
+## 5.  Likelihood Ratios of nested models
+
+ratios_inverse_brier <- list(
+  "M1 vs. M2" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M2), # M1 adds recurrence:laminations
+  "M1 vs. M3" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M3), # M1 adds laminations:grammartype
+  "M1 vs. M4" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M4), # M1 adds recurrence:grammartype
+  "M1 vs. M5" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M5), # M1 adds inputsize:grammartype
+  "M1 vs. M6" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M6), # M1 adds layers
+  "M1 vs. M7" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M7), # M1 adds neurons
+  "M1 vs. M8" = lmtest::lrtest(fits_inverse_brier$M1, fits_inverse_brier$M8)  # M1 adds layers and neurons
 )
 
-lr_progression <- purrr::imap_dfr(
-  ratios,                      # <-- your list of lrtest objects
+
+lr_progression_inverse_brier <- purrr::imap_dfr(
+  ratios_inverse_brier,                      
   ~ {
     m <- as.data.frame(.x)     # lrtest → data‑frame
     dplyr::tibble(
@@ -485,7 +566,43 @@ lr_progression <- purrr::imap_dfr(
     `p‑value` = `p‑value`
   )
 
-best_mod <- fits$M7
+ratios_proportion <- list(
+  "M1 vs. M2" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M2), # M1 adds recurrence:laminations
+  "M1 vs. M3" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M3), # M1 adds laminations:grammartype
+  "M1 vs. M4" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M4), # M1 adds recurrence:grammartype
+  "M1 vs. M5" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M5), # M1 adds inputsize:grammartype
+  "M1 vs. M6" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M6), # M1 adds layers
+  "M1 vs. M7" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M7), # M1 adds neurons
+  "M1 vs. M8" = lmtest::lrtest(fits_proportion$M1, fits_inverse_brier$M8)  # M1 adds layers and neurons
+)
+
+
+lr_progression_proportion <- purrr::imap_dfr(
+  ratios_proportion,                      
+  ~ {
+    m <- as.data.frame(.x)     # lrtest → data‑frame
+    dplyr::tibble(
+      Comparison        = .y,                  # list name: "M0 vs. M1", …
+      `DF Small`          = m$`#Df`[1],          # parameters in smaller model
+      `DF Big`            = m$`#Df`[2],          # parameters in bigger  model
+      `Δdf`             = m$Df[2],             # difference in df (= test df)
+      `Log‑Likelihood Small`  = m$LogLik[1],         # log‑lik of smaller model
+      `Log‑Likelihood Big`  = m$LogLik[2],         # log‑lik of bigger model
+      Chisq             = m$Chisq[2],          # LR χ²
+      `p‑value`         = m$`Pr(>Chisq)`[2]    # p‑value
+    )
+  }
+) |>
+  dplyr::transmute(
+    Comparison = Comparison,
+    `Δdf` = `Δdf`,
+    `Δloglik` = `Log‑Likelihood Big` - `Log‑Likelihood Small`,
+    Chisq = Chisq,
+    `p‑value` = `p‑value`
+  )
+
+best_mod_inverse_brier <- fits_inverse_brier$M1 # The maximal model is the best on AIC, BIC, and cross-validation
+best_mod_proportion <- fits_proportion$M1 # The maximal model is the best on AIC, BIC, and cross-validation
 
 ## 6.  Compare link functions (logit vs log‑log) 
 
@@ -494,130 +611,256 @@ best_mod <- fits$M7
 # suggest that loglog link can be better for handling extreme values close to 0 or 1, 
 # which we have in this data.
 
-M7_loglog <- betareg::betareg(
-  formulas$M7,
+M1_inverse_brier_loglog <- betareg::betareg(
+  formulas_inverse_brier$M1,
+  data = df, link = "loglog"
+)
+
+M1_proportion_loglog <- betareg::betareg(
+  formulas_proportion$M1,
   data = df, link = "loglog"
 )
 
 link_tbl <- dplyr::bind_rows(
-  broom::glance(best_mod) |> dplyr::mutate(Model = "M7", Link = "logit"),
-  broom::glance(M7_loglog) |> dplyr::mutate(Model = "M7", Link = "loglog")
+  broom::glance(best_mod_inverse_brier) |> dplyr::mutate(Model = "M7 (Inverse Brier)", Link = "logit"),
+  broom::glance(M1_inverse_brier_loglog) |> dplyr::mutate(Model = "M7 (Inverse Brier)", Link = "loglog"),
+  broom::glance(best_mod_proportion) |> dplyr::mutate(Model = "M7 (Proportion)", Link = "logit"),
+  broom::glance(M1_proportion_loglog) |> dplyr::mutate(Model = "M7 (Proportion)", Link = "loglog")
 ) |>
   dplyr::select(Model, Link, logLik, AIC, BIC, pseudo.r.squared)
 
-link_kable <- kableExtra::kable(link_tbl, digits = 3, caption = "Link‑function comparison for M7") |>
-  kableExtra::kable_styling(full_width = FALSE)
+link_kable <- kableExtra::kable(link_tbl, digits = 3, caption = "Link‑function comparison for M1 (Maximal Model)") |>
+  kableExtra::kable_styling(full_width = FALSE) #loglog link is best
+
+best_mod_inverse_brier <- M1_inverse_brier_loglog
+best_mod_proportion <- M1_proportion_loglog
 
 ## 8.  Dispersion (phi) variants 
 
-M7_nophi <- betareg::betareg(
-  Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype +
-    poly(inputsize, 2) + recurrence + laminations +
-    grammartype + neurons + layers, # no phi sub-model
-  data = df, link = "logit"
+M7_inverse_brier_nophi <- betareg::betareg(
+  Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations +
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # no phi sub-model
+  data = df, link = "loglog"
+)
+
+M7_proportion_nophi <- betareg::betareg(
+  Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations +
+    recurrence + laminations + inputsize + grammartype + neurons + layers, # no phi sub-model
+  data = df, link = "loglog"
 )
 
 phi_tbl <- dplyr::bind_rows(
-  broom::glance(best_mod) |> dplyr::mutate(Model = "M7 (dispersion φ sub-model)"),
-  broom::glance(M7_nophi) |> dplyr::mutate(Model = "M7 (φ constant)")
+  broom::glance(best_mod_inverse_brier) |> dplyr::mutate(Model = "M7 (Inverse Brier; dispersion φ sub-model)"),
+  broom::glance(M7_inverse_brier_nophi) |> dplyr::mutate(Model = "M7 (Inverse Brier; φ constant)"),
+  broom::glance(best_mod_proportion) |> dplyr::mutate(Model = "M7 (Proportion; dispersion φ sub-model)"),
+  broom::glance(M7_proportion_nophi) |> dplyr::mutate(Model = "M7 (Proportion; φ constant)")
 ) |>
   dplyr::select(Model, logLik, AIC, BIC, pseudo.r.squared)
 
 phi_kable <- kableExtra::kable(phi_tbl, digits = 3, caption = "Dispersion vs equi‑dispersion") |>
   kableExtra::kable_styling(full_width = FALSE) 
 
-nophi_lrtest <- lmtest::lrtest(M7_nophi, best_mod)
+nophi_inverse_brier_lrtest <- lmtest::lrtest(M7_inverse_brier_nophi, best_mod_inverse_brier)
+nophi_proportion_lrtest <- lmtest::lrtest(M7_proportion_nophi, best_mod_proportion)
 
-formulas_phi <- list(
-  "M7a" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
-    recurrence*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
-  "M7b" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
-    laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
-  "M7c" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
-    recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers,
-  "M7d" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
-    recurrence*grammartype + laminations*grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers,
-  "M7e" = Brier_Skill_Score ~ recurrence*grammartype + laminations*grammartype + poly(inputsize, 2) + recurrence + laminations + grammartype + neurons + layers |
-    recurrence*grammartype + laminations*grammartype + recurrence + laminations + poly(inputsize, 2) + grammartype + neurons + layers
+formulas_inverse_brier_phi <- list(
+  "M1a" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype interaction
+  "M1b" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    laminations:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add laminations:grammartype interaction
+  "M1c" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:laminations interaction
+  "M1d" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add inputsize:grammartype interaction
+  "M1e" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype and laminations:grammartype interactions
+  "M1f" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype, laminations:grammartype and recurrence:laminations interactions
+  "M1g" = Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers # Add all interactions
 )
 
-fits_phi <- purrr::map(formulas_phi, ~ betareg::betareg(.x, data = df, link = "logit"))
+formulas_proportion_phi <- list(
+  "M1a" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype interaction
+  "M1b" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    laminations:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add laminations:grammartype interaction
+  "M1c" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:laminations interaction
+  "M1d" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add inputsize:grammartype interaction
+  "M1e" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype and laminations:grammartype interactions
+  "M1f" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence:laminations + recurrence + laminations + inputsize + grammartype + neurons + layers, # Add recurrence:grammartype, laminations:grammartype and recurrence:laminations interactions
+  "M1g" = Proportion_Correct ~ recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers |
+    recurrence:grammartype + laminations:grammartype + recurrence:laminations + inputsize:grammartype + recurrence + laminations + inputsize + grammartype + neurons + layers # Add all interactions
+)
 
-fits_phi$M7 <- best_mod
+fits_inverse_brier_phi <- purrr::map(formulas_inverse_brier_phi, ~ betareg::betareg(.x, data = df, link = "loglog"), .progress = TRUE)
+fits_proportion_phi <- purrr::map(formulas_proportion_phi, ~ betareg::betareg(.x, data = df, link = "loglog"), .progress = TRUE)
 
-fit_tbl_phi <- purrr::map_dfr(fits_phi, ~ broom::glance(.x), .id = "Model") |>
-  dplyr::select(Model, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
+cv_inverse_brier_phi <- compute_cv_block_parallel(df, formulas_inverse_brier_phi, "Inverse_Brier_Score", link_fun = "loglog", k = 5)
+cv_proportion_phi <- compute_cv_block_parallel(df, formulas_proportion_phi, "Proportion Correct", link_fun = "loglog", k = 5)
 
-kable_table_phi <- kableExtra::kable(fit_tbl_phi, digits = 3, caption = "Fit statistics for all candidate models") |>
+fits_inverse_brier_phi$M1 <- best_mod_inverse_brier
+fits_proportion_phi$M1 <- best_mod_proportion
+
+cv_inverse_brier_phi <- cv_inverse_brier_phi |>
+  dplyr::mutate(`RMSE M1 (Logit link)` = cv_inverse_brier$`RMSE M1`)
+
+cv_proportion_phi <- cv_proportion_phi |>
+  dplyr::mutate(`RMSE M1 (Logit link)` = cv_proportion$`RMSE M1`)
+
+fit_tbl_phi <- purrr::map_dfr(fits_inverse_brier_phi, ~ broom::glance(.x), .id = "Model") |>
+  dplyr::mutate(`Response Variable` = "Inverse Brier Score") |>
+  dplyr::bind_rows(
+    dplyr::mutate(purrr::map_dfr(fits_proportion_phi, ~ broom::glance(.x), .id = "Model"),
+                  `Response Variable` = "Proportion Correct")
+    ) |>
+  dplyr::select(Model, `Response Variable`, logLik, df.residual, AIC, BIC, pseudo.r.squared) 
+
+kable_table_phi <- kableExtra::kable(fit_tbl_phi, digits = 3, caption = "Fit statistics for all candidate models with phi modelling") |>
   kableExtra::kable_styling(full_width = FALSE)
 
-best_mod <- fits_phi$M7e # This is much better on AIC/BIC. Better R^2 for other models might indicate they are overfitting given their lower AIC/BIC scores.
+best_mod_inverse_brier <- fits_inverse_brier_phi$M1g # This is better on AIC/BIC and better on cross-validation.
+best_mod_proportion <- fits_proportion_phi$M1g # This is better on AIC/BIC and better on cross-validation.
+
+## 9.  Residuals check 
+
+best_mod_residuals_inverse_brier <- plot_resid(best_mod_inverse_brier)
+ggplot2::ggsave("plots/best_model_inverse_brier_dispersion.svg", plot = best_mod_residuals_inverse_brier)
+
+breusch_pagan_inverse_brier <- lmtest::bptest(best_mod_inverse_brier) # heteroskedastic
+
+best_mod_residuals_proportion <- plot_resid(best_mod_proportion)
+ggplot2::ggsave("plots/best_model_proportion_dispersion.svg", plot = best_mod_residuals_proportion)
+
+breusch_pagan_proportion <- lmtest::bptest(best_mod_proportion) # heteroskedastic
+
+# There is a lot of heteroskedasticity, but this might not be a problem for Beta regression, which is explicitly designed for handling heteroskedasticity
+
+## 10.  Final model summary & EMMs 
+
+# Recurrence Grammar Type interaction
+
+emm_rec_gram_inverse_brier <- emmeans::emmeans(best_mod_inverse_brier, ~ recurrence * grammartype, type = "response")
+emm_rec_gram_inverse_brier_kable <- kableExtra::kable(as.data.frame(emm_rec_gram_inverse_brier),
+      digits = 8, caption = "Recurrence × Grammar Type EMMs (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_gram_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram_inverse_brier, by = "grammartype")),
+      digits = 8, caption = "Pairwise Contrasts Between Architectures By Grammar Type (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_gram_rec_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram_inverse_brier, by = "recurrence")),
+      digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Architecture (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_gram_proportion <- emmeans::emmeans(best_mod_proportion, ~ recurrence * grammartype, type = "response")
+emm_rec_gram_proportion_kable <- kableExtra::kable(as.data.frame(emm_rec_gram_proportion),
+                                                      digits = 8, caption = "Recurrence × Grammar Type EMMs (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_gram_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram_proportion, by = "grammartype")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Architectures By Grammar Type (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_gram_rec_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram_proportion, by = "recurrence")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Architecture (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
 
-## 9.  Residual‑fan check 
+# Laminations Grammar Type Interaction
 
-plot_resid <- function(mod){
-  plot <- ggplot2::ggplot(data.frame(fit = fitted(mod),
-                    res = residuals(mod, type = "deviance")),
-                  ggplot2::aes(fit, res)) +
-    ggplot2::geom_point(alpha = .25) +
-    ggplot2::geom_hline(yintercept = 0) +
-    ggplot2::labs(x = "Fitted", y = "Deviance residual") 
-  return(plot)
-}
+emm_lams_gram_inverse_brier <- emmeans::emmeans(best_mod_inverse_brier, ~ laminations * grammartype, type = "response")
+emm_lams_gram_inverse_brier_kable <- kableExtra::kable(as.data.frame(emm_lams_gram_inverse_brier),
+                                                      digits = 8, caption = "Laminations × Grammar Type EMMs (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-best_mod_residuals <- plot_resid(best_mod)
-ggplot2::ggsave("plots/best_model_dispersion.svg")
+emm_lams_gram_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_lams_gram_inverse_brier, by = "grammartype")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Laminations By Grammar Type (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-# Still some heteroskedasticity that doesn't seem to be being modelled by phi appropriately. Should be noted.
+emm_gram_lams_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_lams_gram_inverse_brier, by = "laminations")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Laminations (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-## 10.  Cross‑validation 
+emm_lams_gram_proportion <- emmeans::emmeans(best_mod_proportion, ~ laminations * grammartype, type = "response")
+emm_lams_gram_proportion_kable <- kableExtra::kable(as.data.frame(emm_lams_gram_proportion),
+                                                   digits = 8, caption = "Laminations × Grammar Type EMMs (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-set.seed(1)
-fold_id <- sample(rep(1:5, length.out = nrow(df))) # shuffled ids for cv sampling
+emm_lams_gram_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_lams_gram_proportion, by = "grammartype")),
+                                                      digits = 8, caption = "Pairwise Contrasts Between Laminations By Grammar Type (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-cv_rmse <- purrr::map_dbl(1:5, function(f){
-  train <- df[fold_id != f, ]
-  test  <- df[fold_id == f, ]
-  mod   <- betareg::betareg(formulas_phi$M7e, data = train, link = "logit")
-  preds <- predict(mod, test) * 4 - 3
-  ModelMetrics::rmse(test$`Brier Skill Score`, preds)
-})
+emm_gram_lams_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_lams_gram_proportion, by = "laminations")),
+                                                      digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Laminations (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
 
-cv_tbl <- dplyr::tibble(Fold = 1:5, RMSE = cv_rmse)
 
-cv_kable <- kableExtra::kable(cv_tbl, digits = 8) |>
+# Laminations Recurrence Interaction
+
+emm_lams_rec_inverse_brier <- emmeans::emmeans(best_mod_inverse_brier, ~ laminations * recurrence, type = "response")
+emm_lams_rec_inverse_brier_kable <- kableExtra::kable(as.data.frame(emm_lams_rec_inverse_brier),
+                                                       digits = 8, caption = "Laminations × Recurrence EMMs (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_lams_rec_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_lams_rec_inverse_brier, by = "laminations")),
+                                                          digits = 8, caption = "Pairwise Contrasts Between Recurrence By Lamination (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_lams_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(emm_lams_rec_inverse_brier, by = "recurrence")),
+                                                          digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Architecture (Inverse Brier Score)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_lams_rec_proportion <- emmeans::emmeans(best_mod_proportion, ~ laminations * recurrence, type = "response")
+emm_lams_rec_proportion_kable <- kableExtra::kable(as.data.frame(emm_lams_rec_proportion),
+                                                      digits = 8, caption = "Laminations × Recurrence EMMs (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_lams_rec_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_lams_rec_proportion, by = "laminations")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Recurrence By Lamination (Proportion Correct)") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+emm_rec_lams_pairwise_proportion <- kableExtra::kable(as.data.frame(pairs(emm_lams_rec_proportion, by = "recurrence")),
+                                                         digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Architecture (Proportion Correct)") |>
   kableExtra::kable_styling(full_width = FALSE)
 
-## 11.  Final model summary & EMMs 
 
-emm_rec_gram <- emmeans::emmeans(best_mod, ~ recurrence * grammartype)
-emm_rec_gram_kable <- kableExtra::kable(as.data.frame(emm_rec_gram),
-      digits = 8, caption = "Recurrence × grammar‑type EMMs") |>
-  kableExtra::kable_styling(full_width = FALSE) 
+# Input size
 
-emm_rec_gram_pairwise <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram, by = "grammartype")),
-      digits = 8) |>
-  kableExtra::kable_styling(full_width = FALSE) 
-
-emm_gram_rec_pairwise <- kableExtra::kable(as.data.frame(pairs(emm_rec_gram, by = "recurrence")),
-      digits = 8) |>
-  kableExtra::kable_styling(full_width = FALSE) 
-
-emm_input <- emmeans::emmeans(best_mod, ~ inputsize,
+emm_input_inverse_brier <- emmeans::emmeans(best_mod_inverse_brier, ~ inputsize * grammartype,
                      at   = list(inputsize = seq(1, 12, by = 1)),
                      type = "response")
 
-inputsize_kabel <- kableExtra::kable(as.data.frame(emm_input), digits = 8,
-      caption = "Predicted mean Brier across input‑size grid") |>
+inputsize_kabel_inverse_brier <- kableExtra::kable(as.data.frame(emm_input_inverse_brier), digits = 8,
+      caption = "Predicted mean inverse Brier score across input‑size grid\nResults averaged over the levels of: recurrence, laminations\nConfidence level used: 0.95") |>
   kableExtra::kable_styling(full_width = FALSE) 
 
-layers_tr <- emmeans::emtrends(best_mod, specs = ~ 1, var = "layers")
-layers_kable_table <- kableExtra::kable(as.data.frame(layers_tr), digits = 8) |>
+emm_input_proportion <- emmeans::emmeans(best_mod_proportion, ~ inputsize * grammartype,
+                                            at   = list(inputsize = seq(1, 12, by = 1)),
+                                            type = "response")
+
+inputsize_kabel_proportion <- kableExtra::kable(as.data.frame(emm_input_proportion), digits = 8,
+                                                   caption = "Predicted mean proportion correct across input‑size grid\nResults averaged over the levels of: recurrence, laminations\nConfidence level used: 0.95") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+layers_tr_inverse_brier <- emmeans::emtrends(best_mod_inverse_brier, specs = ~ 1, var = "layers")
+layers_kable_table_inverse_brier <- kableExtra::kable(as.data.frame(layers_tr_inverse_brier), digits = 8) |>
   kableExtra::kable_styling(full_width = FALSE) 
 
-neurons_tr <- emmeans::emtrends(best_mod, specs = ~ 1, var = "neurons")
-neurons_kable_table <- kableExtra::kable(as.data.frame(neurons_tr), digits = 8) |>
+layers_tr_proportion <- emmeans::emtrends(best_mod_proportion, specs = ~ 1, var = "layers")
+layers_kable_table_proportion <- kableExtra::kable(as.data.frame(layers_tr_proportion), digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+neurons_tr_inverse_brier <- emmeans::emtrends(best_mod_inverse_brier, specs = ~ 1, var = "neurons")
+neurons_kable_table_inverse_brier <- kableExtra::kable(as.data.frame(neurons_tr_inverse_brier), digits = 8) |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+neurons_tr_proportion <- emmeans::emtrends(best_mod_proportion, specs = ~ 1, var = "neurons")
+neurons_kable_table_proportion <- kableExtra::kable(as.data.frame(neurons_tr_proportion), digits = 8) |>
   kableExtra::kable_styling(full_width = FALSE) 
 
 ## 11.  Open Markdown sink 
@@ -625,38 +868,88 @@ neurons_kable_table <- kableExtra::kable(as.data.frame(neurons_tr), digits = 8) 
 sink("results/regression_output.md")
 cat("# Beta‑Regression Model Selection Report\n\n")
 cat("*Generated on:", format(Sys.time(), "%Y‑%m‑%d %H:%M"), "*\n\n")
+cat("*Author*: Konstantinos Voudouris\n\n")
 
-cat("## Candidate models\n\n")
+cat("## Main Effects Model Selection\n\n")
 cat("We fit eight nested or semi‑nested models, progressively adding interaction",
-    "terms and/or a quadratic effect of `inputsize`.\n\n")
+    "terms and/or a quadratic effect of `inputsize`. We do so for both output variables, Inverse Brier Score and Proportion Correct.\n",
+    "We assume all main effects are in the phi (variance) sub-model. This is investigated later.\n\n")
+
+cat("We apply Smithson-Verkuilen shrinkage to any 0s or 1s in the response variable, following standard practice.\n",
+    "*Note*: We attempted the use of extended beta regressions to handle these responses natively, but they take too long to fit for our very large dataset, due to the inclusion of the nu parameters which also have to be learnt.\n\n")
 
 cat(
-  "Fitting the following models for model selection (with logit links)…\n\n",
+  "We fitted the following models for model selection (with logit links) for Inverse Brier Score...\n\n```\n",
   paste(
-    names(formulas),
-    vapply(formulas, function(f) paste(deparse(f), collapse = ""), ""),
+    names(formulas_inverse_brier),
+    vapply(formulas_inverse_brier, function(f) paste(deparse(f), collapse = ""), ""),
     sep = ": ",
     collapse = "\n\n"
   ),
-  "\n"
+  "\n```\n\n"
 )
 
-kable_table <- kableExtra::kable(fit_tbl, digits = 3, caption = "Fit statistics for all candidate models") |>
+cat(
+  "We fitted the same models for model selection (with logit links) for Proportion Correct...\n\n```\n",
+  paste(
+    names(formulas_inverse_brier),
+    vapply(formulas_inverse_brier, function(f) paste(deparse(f), collapse = ""), ""),
+    sep = ": ",
+    collapse = "\n\n"
+  ),
+  "\n```\n\n"
+)
+
+cat("\n### Fit statistics\n\n\n")
+
+kable_table_inverse_brier <- kableExtra::kable(fit_inverse_brier_tbl, digits = 3, caption = "Fit statistics for all candidate models with Inverse Brier Score") |>
   kableExtra::kable_styling(full_width = FALSE)
 
-cat(kable_table, sep = "\n\n")
+cat(kable_table_inverse_brier, sep = "\n\n")
 
-cat("\n## Likelihood Ratios between nested models\n\n")
+cat("\n\n")
 
-lr_progression_table <- kableExtra::kable(lr_progression, digits = 8, caption = "Stepwise Likelihood Ratios (Wilks Tests)") |>
+kable_table_proportion <- kableExtra::kable(fit_proportion_tbl, digits = 3, caption = "Fit statistics for all candidate models with Proportion Correct") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+cat(kable_table_proportion, sep = "\n\n")
+
+cat("\n### Likelihood Ratios between nested models\n\n\n")
+
+lr_progression_table_inverse_brier <- kableExtra::kable(lr_progression_inverse_brier, digits = 8, caption = "Stepwise Likelihood Ratios (Wilks Tests) on Inverse Brier Score Models") |>
   kableExtra::kable_styling(full_width = FALSE) 
 
-cat(lr_progression_table, sep = "\n\n")
+cat(lr_progression_table_inverse_brier, sep = "\n\n")
 
-cat("\n**Model M7** has the lowest AIC/BIC overall, so we\n",
+cat("\n\n")
+
+lr_progression_table_proportion <- kableExtra::kable(lr_progression_proportion, digits = 8, caption = "Stepwise Likelihood Ratios (Wilks Tests) on Proportion Correct Models") |>
+  kableExtra::kable_styling(full_width = FALSE) 
+
+cat(lr_progression_table_proportion, sep = "\n\n")
+
+cat("\n### 5-Fold Cross-Validation\n\n\n")
+
+cv_kable_table_inverse_brier <- kableExtra::kable(cv_inverse_brier, digits = 3, caption = "Cross validation RMSEs (lower is better) for all candidate models with Inverse Brier Score") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+cat(cv_kable_table_inverse_brier, sep = "\n\n")
+
+cat("\n\n")
+
+cv_kable_table_proportion <- kableExtra::kable(cv_proportion, digits = 3, caption = "Cross validation RMSEs (lower is better) for all candidate models with Proportion Correct") |>
+  kableExtra::kable_styling(full_width = FALSE)
+
+cat(cv_kable_table_proportion, sep = "\n\n")
+
+cat("\n### Best Main Effects Model Specification\n")
+
+cat("\n**Maximal Model (M1)** has the lowest AIC/BIC overall and is the (joint) best performing on cross-validation, so we\n",
     "treat it as the *current best* specification:\n\n")
 
-cat(paste(deparse(formulas$M7)))
+cat("\n```\n", paste(deparse(formulas_inverse_brier$M1)), "\n\n", paste(deparse(formulas_proportion$M1)), "\n```\n\n")
+
+cat("\n## Link Function Selection")
 
 cat("\nNow let's check if the link function is appropriate. \n", 
     "Cribari-Neto and Lima (2007; A Misspecification Test for Beta Regressions) ",
@@ -665,76 +958,219 @@ cat("\nNow let's check if the link function is appropriate. \n",
 
 cat(link_kable, sep = "\n\n")
 
-cat("\nThe logit link appears to allow for a better fit, both on AIC/BIC and R^2.\n")
+cat("\nThe loglog link appears to allow for a better fit, both on AIC and BIC, so we proceed with it given the Crebari-Neto and Lima reasoning about extreme values.\n")
 
-cat("### Dispersion (phi-model) Tests\n\n")
+cat("\n## Dispersion (phi-)Model Selection\n\n")
+
+cat("\n### Dispersion vs. Equi-Dispersion\n\n\n")
 
 cat(phi_kable, sep = "\n\n")
 
-cat("\nWhile the pseudo-R^2 is much higher without modelling phi, the AIC/BIC is improved. We can use a likelihood-ratio test to confirm.\n")
+cat("\nWhile the pseudo-R^2 is much higher without modelling phi, the AIC/BIC is improved. We use a likelihood-ratio test to confirm.\n")
 
-cat("A likelihood‑ratio test confirms the dispersion sub‑model is warranted (higher log-likelihood):\n\n")
+cat("A likelihood‑ratio test confirms the dispersion sub‑model for Inverse Brier Score is warranted (higher log-likelihood):\n\n")
 cat("```")
-print(nophi_lrtest)
+print(nophi_inverse_brier_lrtest)
 cat("```\n\n")
 
-cat("Let's check whether including interaction terms in the phi model improves fit:\n\n")
+cat("A likelihood‑ratio test confirms the dispersion sub‑model for Proportion Correct is warranted (higher log-likelihood):\n\n")
+cat("```")
+print(nophi_proportion_lrtest)
+cat("```\n\n")
+
+cat("\n### Interaction Effects\n\n")
 
 cat(
-  "Fitting the following models for model selection (with logit links)...\n\n",
+  "We fitted the following models for model selection (with loglog links) for Inverse Brier Score...\n\n```\n",
   paste(
-    names(formulas_phi),
-    vapply(formulas_phi, function(f) paste(deparse(f), collapse = ""), ""),
+    names(formulas_inverse_brier_phi),
+    vapply(formulas_inverse_brier_phi, function(f) paste(deparse(f), collapse = ""), ""),
     sep = ": ",
     collapse = "\n\n"
   ),
-  "\n"
+  "\n```\n\n"
+)
+
+cat(
+  "We fitted the same models for model selection (with loglog links) for Proportion Correct...\n\n```\n",
+  paste(
+    names(formulas_proportion_phi),
+    vapply(formulas_proportion_phi, function(f) paste(deparse(f), collapse = ""), ""),
+    sep = ": ",
+    collapse = "\n\n"
+  ),
+  "\n```\n\n"
 )
 
 
 cat(kable_table_phi, sep = "\n\n")
 
-cat("M7e is much improved on AIC/BIC. The higher R^2 on the other models may indicate overfitting with no predictive gain. Hence, we proceed with M7e as the best model specification.\n\n")
+cat("\n\n")
 
-cat("\n### Residual fan plots  \n")
-cat("*(Plot saved separately as svg file: `plots/resid_dispersion.svg`\n\n")
+cv_kable_table_inverse_brier_phi <- kableExtra::kable(cv_inverse_brier_phi, digits = 3, caption = "Cross validation RMSEs (lower is better) for all candidate phi models with Inverse Brier Score") |>
+  kableExtra::kable_styling(full_width = FALSE)
 
-cat("There is still heteroskedasticity in the model, as indicated by the fan shape of the residuals. This should be noted, but also beta regression doesn't have well-defined residual checks.\n\n")
+cat(cv_kable_table_inverse_brier_phi, sep = "\n\n")
 
-cat("\n## Five‑fold cross‑validation (RMSE in Brier Skill Score units)\n\n")
+cat("\n\n")
 
-cat(cv_kable, sep = "\n\n")
+cv_kable_table_proportion_phi <- kableExtra::kable(cv_proportion_phi, digits = 3, caption = "Cross validation RMSEs (lower is better) for all candidate phi models with Proportion Correct") |>
+  kableExtra::kable_styling(full_width = FALSE)
 
-cat("\nMean RMSE:**", round(mean(cv_rmse), 4), "**\n\n")
+cat(cv_kable_table_proportion_phi, sep = "\n\n")
 
-cat("\n# Final model\n M7e with dispersion modelling with interactions and logit link\n\n")
+cat("\n\n ### Best Phi Model Specification\n\n")
+
+cat("M1g (maximal phi-model) is much improved on AIC/BIC and is equally performant on cross-validation. Hence, we proceed with M1g as the best model specification.\n\n")
+
+cat("\n```\n", paste(deparse(formulas_inverse_brier_phi$M1g)), "\n\n", paste(deparse(formulas_proportion_phi$M1g)), "\n```\n\n")
+
+cat("\n### Heteroskedasticity Checks \n")
+cat("*Plots saved separately as svg files*: `plots/best_model_inverse_brier_resid_dispersion.svg`, `plots/best_model_proportion_resid_dispersion.svg`\n\n")
+
+cat("Breusch-Pagan tests confirm the heteroskedasticity:\n")
+
+cat("```\n")
+
+print(breusch_pagan_inverse_brier)
+
+cat("\n\n")
+
+print(breusch_pagan_proportion)
+
+cat("\n```\n\n")
+
+cat("There is still heteroskedasticity in the model, as indicated by the fan shape of the residuals. This should be noted, but also beta regression doesn't have well-defined residual checks and it may not necessarily be a problem for Beta regression, since it is designed to handle heteroskedasticity.\n\n")
+
+cat("\n# Final Model Statistics\n\n")
+
+cat("## Inverse Brier Score Model\n\n")
 cat("```")
-print(summary(best_mod))
+print(summary(best_mod_inverse_brier))
 cat("```\n\n")
 
-cat("\n## Estimated marginal means (EMMs)\n\n")
+cat("\n### Recurrence-Grammar Interaction\n\n")
 
-cat(emm_rec_gram_kable, sep = "\n\n")
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
 
-cat("\n### Pairwise contrasts (recurrence within each grammar)  \n\n")
+cat(emm_rec_gram_inverse_brier_kable, sep = "\n\n")
 
-cat(emm_rec_gram_pairwise, sep = "\n\n")
+cat("\n#### Pairwise Contrasts  \n\n")
 
-cat("\n### Pairwise contrasts (grammar within each recurrence)  \n\n")
+cat(emm_rec_gram_pairwise_inverse_brier, sep = "\n\n")
 
-cat(emm_gram_rec_pairwise, sep = "\n\n")
+cat("\n")
 
-cat("\n## Continuous predictors\n\n")
+cat(emm_gram_rec_pairwise_inverse_brier, sep = "\n\n")
 
-cat(inputsize_kabel, sep = "\n\n")
+
+cat("\n### Laminations-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+cat(kableExtra::kable(emm_lams_gram_inverse_brier, digits = 8, caption = "Laminations × Grammar EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(emm_lams_gram_pairwise_inverse_brier, sep = "\n\n")
+
+cat("\n")
+
+cat(emm_gram_lams_pairwise_inverse_brier, sep = "\n\n")
+
+
+cat("\n### Recurrence-Laminations Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+cat(emm_lams_rec_inverse_brier_kable, sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(emm_lams_rec_pairwise_inverse_brier, sep = "\n\n")
+
+cat("\n")
+
+cat(emm_rec_lams_pairwise_inverse_brier, sep = "\n\n")
+
+
+cat("\n### Input Size \n\n")
+
+cat(kableExtra::kable(emm_input_inverse_brier, digits = 8, caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
+        kableExtra::kable_styling(full_width = FALSE), sep = "\n\n"  )
 
 cat("\n### Slope of layers\n\n")
 
-cat(layers_kable_table, sep = "\n\n")
+cat(layers_kable_table_inverse_brier, sep = "\n\n")
 
 cat("\n### Slope of neurons\n\n")
 
-cat(neurons_kable_table, sep = "\n\n")
+cat(neurons_kable_table_inverse_brier, sep = "\n\n")
+
+cat("\n\n## Proportion Correct Model\n\n")
+cat("```")
+print(summary(best_mod_proportion))
+cat("```\n\n")
+
+cat("\n### Recurrence-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+cat(emm_rec_gram_proportion_kable, sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(emm_rec_gram_pairwise_proportion, sep = "\n\n")
+
+cat("\n")
+
+cat(emm_gram_rec_pairwise_proportion, sep = "\n\n")
+
+
+cat("\n### Laminations-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+cat(kableExtra::kable(emm_lams_gram_proportion, digits = 8, caption = "Laminations × Grammar EMMs (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(emm_lams_gram_pairwise_proportion, sep = "\n\n")
+
+cat("\n")
+
+cat(emm_gram_lams_pairwise_proportion, sep = "\n\n")
+
+
+cat("\n### Recurrence-Laminations Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+cat(emm_lams_rec_proportion_kable, sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(emm_lams_rec_pairwise_proportion, sep = "\n\n")
+
+cat("\n")
+
+cat(emm_rec_lams_pairwise_proportion, sep = "\n\n")
+
+
+cat("\n### Input Size \n\n")
+
+cat(kableExtra::kable(emm_input_proportion, digits = 8, caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n" )
+
+cat("\n\n### Slope of layers\n\n")
+
+cat(layers_kable_table_proportion, sep = "\n\n")
+
+cat("\n### Slope of neurons\n\n")
+
+cat(neurons_kable_table_proportion, sep = "\n\n")
 
 cat("\n\n\n")
 
