@@ -57,12 +57,7 @@ plot_results <- function(data,
                         y = !!ysym,
                         col = !!csym)) +
     
-    # 1) bar = mean
-    # ggplot2::geom_bar(stat = "summary",
-    #          fun  = "mean",
-    #          position = ggplot2::position_dodge(width = 0.9),
-    #          width = 0.8
-    #          ) +
+    # 1) point = mean
     ggplot2::stat_summary(fun = mean,
                  geom = "point",
                  size = 3,
@@ -108,6 +103,100 @@ plot_results <- function(data,
   
   return(p)
 }
+
+# general plotter with mean path ± bootstrapped CI ribbon
+plot_results_path <- function(data,
+                              x,                 # string - column to plot on the x-axis
+                              y,                 # string – column to plot on the y-axis
+                              colour,            # string – column that defines colour / legend
+                              ref_hline = NULL, # integer - defines a line for reference
+                              facet = NULL,      # string (optional) – column for facet_grid
+                              ci = 0.99,         # width of the normal-theory CI
+                              xlab = "Input Size",
+                              ylab = NULL,       # defaults to `y` if missing
+                              col_lab = NULL,    # defaults to `colour` if missing
+                              facet_lab = NULL,  # defaults to `facet` if missing
+                              ribbon_alpha = 0.20, # transparency for CI ribbon
+                              file = NULL,       # file name to save (NULL → don’t save)
+                              width = 16,
+                              height = 8) {
+  
+  ## convert strings → symbols for tidy-eval
+  xsym   <- rlang::sym(x)
+  ysym   <- rlang::sym(y)
+  csym   <- rlang::sym(colour)
+  facet_sym <- if (!is.null(facet)) rlang::sym(facet) else NULL
+  
+  ## core plot ---------------------------------------------------------------
+  p <- ggplot2::ggplot(
+    data,
+    ggplot2::aes(x = !!xsym,
+                 y = !!ysym,
+                 colour = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS")),
+                 group  = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS")))   # group so the path connects by colour
+  ) +
+    # 1) CI ribbon (drawn first, so the path/points stay on top)
+    ggplot2::stat_summary(
+      fun.data = ggplot2::mean_cl_boot,
+      fun.args = list(conf.int = ci),
+      geom     = "ribbon",
+      ggplot2::aes(fill = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS"))),   # separate fill aesthetic → legend matches colour
+      alpha    = ribbon_alpha,
+      linewidth = 0,                 # no outline on ribbon
+      # position = ggplot2::position_dodge(width = 0.9),
+      show.legend = FALSE            # hide ribbon legend; keeps plot cleaner
+    ) +
+    # 2) line that traces the means
+    ggplot2::stat_summary(
+      fun = mean,
+      geom = "path",          # could also use "line"; "path" is explicit
+      ggplot2::aes(#colour = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS")),
+                   group = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS"))),   # separate colour aesthetic → legend matches colour
+      linewidth = 1
+    )
+  
+  if (!is.null(ref_hline)) {
+    p <- p + ggplot2::geom_hline(yintercept = ref_hline, 
+                                 linetype='dashed', col = 'grey') +
+      ggplot2::annotate("text", x = 12, y = ref_hline, label = "FFN", vjust = -0.5)
+  }
+  
+  ## add facets, if requested
+  if (!is.null(facet_sym)) {
+    p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym),
+                                 labeller = if (!is.null(facet_lab))
+                                   ggplot2::labeller(.cols = setNames(facet_lab, facet))
+                                 else "label_value")
+  }
+  
+  ## theme and labels --------------------------------------------------------
+  p <- p +
+    ggplot2::scale_x_continuous(breaks = c(1:12)) + 
+    ggplot2::theme_minimal(base_size = 20) +
+    ggplot2::theme(
+      axis.text.x      = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 0.5),
+      panel.grid.major = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.border     = ggplot2::element_rect(colour = "grey80", fill = NA, linewidth = 0.5),
+      panel.spacing    = grid::unit(1, "lines"),
+      legend.text      = ggplot2::element_text(size = 20),
+      legend.title     = ggplot2::element_text(size = 20)
+    ) +
+    ggplot2::xlab(xlab) +
+    ggplot2::ylab(if (is.null(ylab)) y else ylab) +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(title = if (is.null(col_lab)) colour else col_lab),
+      fill   = "none"  # suppress separate fill legend (keeps only colour legend)
+    )
+  
+  ## save, if asked ----------------------------------------------------------
+  if (!is.null(file)) {
+    ggplot2::ggsave(filename = file, plot = p, width = width, height = height)
+  }
+  
+  return(p)
+}
+
 
 settings <- yaml::read_yaml(paste0("./src/settings.yaml"))
 
@@ -226,6 +315,54 @@ plot_results(
   width = 15, height = 8
 )
 
+# --- Plotting with input sizes that minimize risk of finite-state solutions ---
+
+post_training_data_summarised_specific_inputs <- post_training_data_summarised |>
+  dplyr::filter(
+    recurrence != "FFN" &
+       (
+         (grammartype == "CF" & inputsize < 4) |
+         (grammartype == "CS" & inputsize < 7) |
+         (grammartype != "CF" | grammartype != "CS")
+     )
+  )
+
+plot_results(
+  post_training_data_summarised_specific_inputs,
+  y     = "Brier Skill Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_no_finite_point_brier_skill_score.svg",
+  width = 15, height = 8
+)
+
+plot_results(
+  post_training_data_summarised_specific_inputs,
+  y     = "Brier Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_no_finite_point_brier_score_raw.svg",
+  width = 15, height = 8
+)
+
+plot_results(
+  post_training_data_summarised_specific_inputs,
+  y     = "Inverse Brier Score",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_no_finite_point_brier_score_inverse.svg",
+  width = 15, height = 8
+)
+
+plot_results(
+  post_training_data_summarised_specific_inputs,
+  y     = "Proportion Correct",
+  colour  = "recurrence",
+  col_lab = "Architecture Type",
+  file  = "plots/grammar_by_architecture_type_no_finite_point_proportion.svg",
+  width = 15, height = 8
+)
+
 cat("Plotting input sizes...\n")
 
 plot_results(
@@ -267,6 +404,69 @@ plot_results(
   file  = "plots/grammar_by_input_size_point_proportion.svg",
   width = 16, height = 8
 )
+
+plot_results_path(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  x     = "inputsize",
+  y     = "Brier Skill Score",
+  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Brier Skill Score`) + 0.001,
+  colour  = "grammartype",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/input_size_by_grammar_path_brier_skill_score.svg",
+  width = 16, height = 8
+)
+
+# --- Path plots ---
+
+plot_results_path(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  x     = "inputsize",
+  y     = "Brier Skill Score",
+  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Brier Skill Score`) + 0.001,
+  colour  = "grammartype",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/input_size_by_grammar_path_brier_skill_score.svg",
+  width = 16, height = 8
+)
+
+plot_results_path(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  x     = "inputsize",
+  y     = "Brier Score",
+  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Brier Score`) + 0.001,
+  colour  = "grammartype",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/input_size_by_grammar_path_brier_score_raw.svg",
+  width = 16, height = 8
+)
+
+plot_results_path(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  x     = "inputsize",
+  y     = "Inverse Brier Score",
+  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Inverse Brier Score`) + 0.001,
+  colour  = "grammartype",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/input_size_by_grammar_path_brier_score_inverse.svg",
+  width = 16, height = 8
+)
+
+plot_results_path(
+  dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
+  x     = "inputsize",
+  y     = "Proportion Correct",
+  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Proportion Correct`) + 0.001,
+  colour  = "grammartype",
+  facet = "recurrence",
+  col_lab = "Input Size",
+  file  = "plots/input_size_by_grammar_path_proportion.svg",
+  width = 16, height = 8
+)
+
 
 cat("Plotting neurons...\n")
 
