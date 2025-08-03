@@ -60,7 +60,7 @@ plot_results <- function(data,
     # 1) point = mean
     ggplot2::stat_summary(fun = mean,
                  geom = "point",
-                 size = 3,
+                 size = 7,
                  position = ggplot2::position_dodge(width = 0.9)) +
     
     # 2) error bar = mean +- CI
@@ -69,7 +69,7 @@ plot_results <- function(data,
                  geom = "errorbar",
                  position = ggplot2::position_dodge(width = 0.9),
                  width = 0.2,
-                 linewidth = 0.7) +
+                 linewidth = 1) +
     
     # dashed separators between grammar categories
     ggplot2::geom_vline(xintercept = seq(1.5, length(x_levels) - 0.5, by = 1),
@@ -84,15 +84,15 @@ plot_results <- function(data,
     }
 
     # theme and labels
-    p <- p + ggplot2::theme_minimal(base_size = 20) +
+    p <- p + ggplot2::theme_minimal(base_size = 30) +
     ggplot2::theme(
       axis.text.x      = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 0.5),
       panel.grid.major = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
       panel.border     = ggplot2::element_rect(colour = "grey80", fill = NA, linewidth = 0.5),
       panel.spacing    = grid::unit(1, "lines"),
-      legend.text      = ggplot2::element_text(size = 20),
-      legend.title     = ggplot2::element_text(size = 20)
+      legend.text      = ggplot2::element_text(size = 30),
+      legend.title     = ggplot2::element_text(size = 30)
     ) +
     ggplot2::xlab(xlab) +
     ggplot2::ylab(if (is.null(ylab)) y else ylab) +
@@ -172,15 +172,15 @@ plot_results_path <- function(data,
   ## theme and labels --------------------------------------------------------
   p <- p +
     ggplot2::scale_x_continuous(breaks = c(1:12)) + 
-    ggplot2::theme_minimal(base_size = 20) +
+    ggplot2::theme_minimal(base_size = 30) +
     ggplot2::theme(
       axis.text.x      = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 0.5),
       panel.grid.major = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
       panel.border     = ggplot2::element_rect(colour = "grey80", fill = NA, linewidth = 0.5),
       panel.spacing    = grid::unit(1, "lines"),
-      legend.text      = ggplot2::element_text(size = 20),
-      legend.title     = ggplot2::element_text(size = 20)
+      legend.text      = ggplot2::element_text(size = 30),
+      legend.title     = ggplot2::element_text(size = 30)
     ) +
     ggplot2::xlab(xlab) +
     ggplot2::ylab(if (is.null(ylab)) y else ylab) +
@@ -321,8 +321,8 @@ post_training_data_summarised_specific_inputs <- post_training_data_summarised |
   dplyr::filter(
     recurrence != "FFN" &
        (
-         (grammartype == "CF" & inputsize < 4) |
-         (grammartype == "CS" & inputsize < 7) |
+         (grammartype == "CS" & inputsize < 4) |
+         (grammartype == "CF" & inputsize < 7) |
          (grammartype != "CF" | grammartype != "CS")
      )
   )
@@ -426,7 +426,7 @@ plot_results_path(
   ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Brier Skill Score`) + 0.001,
   colour  = "grammartype",
   facet = "recurrence",
-  col_lab = "Input Size",
+  col_lab = "Grammar Type",
   file  = "plots/input_size_by_grammar_path_brier_skill_score.svg",
   width = 16, height = 8
 )
@@ -438,7 +438,7 @@ plot_results_path(
   ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Brier Score`) + 0.001,
   colour  = "grammartype",
   facet = "recurrence",
-  col_lab = "Input Size",
+  col_lab = "Grammar Type",
   file  = "plots/input_size_by_grammar_path_brier_score_raw.svg",
   width = 16, height = 8
 )
@@ -450,7 +450,7 @@ plot_results_path(
   ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Inverse Brier Score`) + 0.001,
   colour  = "grammartype",
   facet = "recurrence",
-  col_lab = "Input Size",
+  col_lab = "Grammar Type",
   file  = "plots/input_size_by_grammar_path_brier_score_inverse.svg",
   width = 16, height = 8
 )
@@ -462,7 +462,7 @@ plot_results_path(
   ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Proportion Correct`) + 0.001,
   colour  = "grammartype",
   facet = "recurrence",
-  col_lab = "Input Size",
+  col_lab = "Grammar Type",
   file  = "plots/input_size_by_grammar_path_proportion.svg",
   width = 16, height = 8
 )
@@ -1371,6 +1371,225 @@ cat(layers_kable_table_proportion, sep = "\n\n")
 cat("\n### Slope of neurons\n\n")
 
 cat(neurons_kable_table_proportion, sep = "\n\n")
+
+cat("\n\n\n")
+
+cat("# Exploring Input size\n\n")
+
+cat("One of the findings is that input size heavily impacts performance.",
+    "It is possible that the recurrent architectures are performing well on context-free and context-sensitive",
+    "grammars because they are able to use a finite-state strategy when given a large enough input size.",
+    "\n\nTherefore, we need to see whether the effects are robust when we ablate the data in that way.")
+
+df_ablated <- df |>
+  dplyr::filter(
+      (
+        (grammartype == "CS" & inputsize < 5 & recurrence != "FFN") |
+          (grammartype == "CF" & inputsize < 7 & recurrence != "FFN") |
+          (grammartype != "CF" & grammartype != "CS") |
+          (inputsize == 12 & recurrence == "FFN")
+      )
+  )
+
+ablated_model_inverse_brier <- betareg::betareg(
+  formulas_inverse_brier_phi$M1g,
+  data = df_ablated, 
+  link = "loglog"
+)
+
+ablated_model_proportion <- betareg::betareg(
+  formulas_proportion_phi$M1g,
+  data = df_ablated, 
+  link = "loglog"
+)
+
+cat("## Inverse Brier Score Model\n\n")
+cat("```")
+print(summary(ablated_model_inverse_brier))
+cat("```\n\n")
+
+cat("\n### Recurrence-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_rec_gram_inverse_brier_ablated <- emmeans::emmeans(ablated_model_inverse_brier, ~ recurrence * grammartype, type = "response")
+
+cat(kableExtra::kable(as.data.frame(emm_rec_gram_inverse_brier_ablated),
+digits = 8, caption = "Recurrence × Grammar Type EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_rec_gram_inverse_brier_ablated, by = "grammartype")),
+                      digits = 8, caption = "Pairwise Contrasts Between Architectures By Grammar Type (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_rec_gram_inverse_brier_ablated, by = "recurrence")),
+                      digits = 8, caption = "Pairwise Contrasts Between Grammar Type By Architecture (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+
+cat("\n### Laminations-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_lams_gram_inverse_brier_ablated <- emmeans::emmeans(ablated_model_inverse_brier, ~ laminations * grammartype, type = "response")
+
+cat(kableExtra::kable(emm_lams_gram_inverse_brier_ablated, digits = 8, caption = "Laminations × Grammar EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_gram_inverse_brier_ablated, by = "grammartype")),
+                      digits = 8, caption = "Pairwise Contrasts Between Laminations By Grammar Type (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_gram_inverse_brier_ablated, by = "laminations")),
+                      digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Lamination (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n### Recurrence-Laminations Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_lams_rec_inverse_brier_ablated <- emmeans::emmeans(ablated_model_inverse_brier, ~ laminations * recurrence, type = "response")
+
+cat(kableExtra::kable(emm_lams_rec_inverse_brier_ablated, digits = 8, caption = "Laminations × Recurrence EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_rec_inverse_brier_ablated, by = "recurrence")),
+                      digits = 8, caption = "Pairwise Contrasts Between Laminations By Architecture (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_rec_inverse_brier_ablated, by = "laminations")),
+                      digits = 8, caption = "Pairwise Contrasts Between Architecture By Laminations (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+
+cat("\n### Input Size \n\n")
+
+emm_input_inverse_brier_ablated <- emmeans::emmeans(ablated_model_inverse_brier, ~ inputsize * grammartype,
+                                                    at   = list(inputsize = seq(1, 12, by = 1)),
+                                                    type = "response")
+
+cat(kableExtra::kable(emm_input_inverse_brier_ablated, digits = 8, caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n"  )
+
+cat("\n### Slope of layers\n\n")
+
+layers_tr_inverse_brier_ablated <- emmeans::emtrends(ablated_model_inverse_brier, specs = ~ 1, var = "layers")
+
+cat(kableExtra::kable(as.data.frame(layers_tr_inverse_brier_ablated), digits = 8) |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n### Slope of neurons\n\n")
+
+neurons_tr_inverse_brier_ablated <- emmeans::emtrends(ablated_model_inverse_brier, specs = ~ 1, var = "neurons")
+
+cat(kableExtra::kable(as.data.frame(neurons_tr_inverse_brier_ablated), digits = 8) |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n\n## Proportion Correct Model\n\n")
+cat("```")
+print(summary(ablated_model_proportion))
+cat("```\n\n")
+
+cat("\n### Recurrence-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_rec_gram_proportion_ablated <- emmeans::emmeans(ablated_model_proportion, ~ recurrence * grammartype, type = "response")
+
+cat(kableExtra::kable(as.data.frame(emm_rec_gram_proportion_ablated),
+                      digits = 8, caption = "Recurrence × Grammar Type EMMs (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_rec_gram_proportion_ablated, by = "grammartype")),
+                      digits = 8, caption = "Pairwise Contrasts Between Architectures By Grammar Type (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_rec_gram_proportion_ablated, by = "recurrence")),
+                      digits = 8, caption = "Pairwise Contrasts Between Grammar Type By Architecture (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+
+cat("\n### Laminations-Grammar Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_lams_gram_proportion_ablated <- emmeans::emmeans(ablated_model_proportion, ~ laminations * grammartype, type = "response")
+
+cat(kableExtra::kable(emm_lams_gram_proportion_ablated, digits = 8, caption = "Laminations × Grammar EMMs (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_gram_proportion_ablated, by = "grammartype")),
+                      digits = 8, caption = "Pairwise Contrasts Between Laminations By Grammar Type (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_gram_proportion_ablated, by = "laminations")),
+                      digits = 8, caption = "Pairwise Contrasts Between Grammar Types By Lamination (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+
+cat("\n### Recurrence-Laminations Interaction\n\n")
+
+cat("\n#### Estimated Marginal Means (EMMs)\n\n")
+
+emm_lams_rec_proportion_ablated <- emmeans::emmeans(ablated_model_proportion, ~ laminations * recurrence, type = "response")
+
+cat(kableExtra::kable(emm_lams_rec_proportion_ablated, digits = 8, caption = "Laminations × Recurrence EMMs (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n#### Pairwise Contrasts  \n\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_rec_proportion_ablated, by = "recurrence")),
+                      digits = 8, caption = "Pairwise Contrasts Between Laminations By Architecture (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n")
+
+cat(kableExtra::kable(as.data.frame(pairs(emm_lams_rec_proportion_ablated, by = "laminations")),
+                      digits = 8, caption = "Pairwise Contrasts Between Architecture By Laminations (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+
+cat("\n### Input Size \n\n")
+
+emm_input_proportion_ablated <- emmeans::emmeans(ablated_model_proportion, ~ inputsize * grammartype,
+                                                    at   = list(inputsize = seq(1, 12, by = 1)),
+                                                    type = "response")
+
+cat(kableExtra::kable(emm_input_proportion_ablated, digits = 8, caption = "Input Size × Grammar EMMs (Proportion Correct)") |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n"  )
+
+cat("\n### Slope of layers\n\n")
+
+layers_tr_proportion_ablated <- emmeans::emtrends(ablated_model_proportion, specs = ~ 1, var = "layers")
+
+cat(kableExtra::kable(as.data.frame(layers_tr_proportion_ablated), digits = 8) |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
+
+cat("\n### Slope of neurons\n\n")
+
+neurons_tr_proportion_ablated <- emmeans::emtrends(ablated_model_proportion, specs = ~ 1, var = "neurons")
+
+cat(kableExtra::kable(as.data.frame(neurons_tr_proportion_ablated), digits = 8) |>
+      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n")
 
 cat("\n\n\n")
 
