@@ -35,21 +35,21 @@ M8: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +    
 We fitted the same models for model selection (with logit links) for Proportion Correct...
 
 ```
- M1: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + neurons + layers |     recurrence + laminations + inputsize + grammartype + neurons +         layers
+ M1: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + neurons + layers |     recurrence + laminations + inputsize + grammartype + neurons +         layers
 
-M2: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
+M2: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
 
-M3: Inverse_Brier_Score ~ recurrence:grammartype + recurrence:laminations +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
+M3: Proportion_Correct ~ recurrence:grammartype + recurrence:laminations +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
 
-M4: Inverse_Brier_Score ~ laminations:grammartype + recurrence:laminations +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
+M4: Proportion_Correct ~ laminations:grammartype + recurrence:laminations +     inputsize:grammartype + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
 
-M5: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
+M5: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + recurrence + laminations + inputsize +     grammartype + neurons + layers | recurrence + laminations +     inputsize + grammartype + neurons + layers
 
-M6: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + neurons | recurrence +     laminations + inputsize + grammartype + neurons + layers
+M6: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + neurons | recurrence +     laminations + inputsize + grammartype + neurons + layers
 
-M7: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + layers | recurrence +     laminations + inputsize + grammartype + neurons + layers
+M7: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype + layers | recurrence +     laminations + inputsize + grammartype + neurons + layers
 
-M8: Inverse_Brier_Score ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype | recurrence + laminations +     inputsize + grammartype + neurons + layers 
+M8: Proportion_Correct ~ recurrence:grammartype + laminations:grammartype +     recurrence:laminations + inputsize:grammartype + recurrence +     laminations + inputsize + grammartype | recurrence + laminations +     inputsize + grammartype + neurons + layers 
 ```
 
 

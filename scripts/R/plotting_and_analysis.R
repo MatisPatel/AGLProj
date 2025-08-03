@@ -1092,8 +1092,8 @@ cat(
 cat(
   "We fitted the same models for model selection (with logit links) for Proportion Correct...\n\n```\n",
   paste(
-    names(formulas_inverse_brier),
-    vapply(formulas_inverse_brier, function(f) paste(deparse(f), collapse = ""), ""),
+    names(formulas_proportion),
+    vapply(formulas_proportion, function(f) paste(deparse(f), collapse = ""), ""),
     sep = ": ",
     collapse = "\n\n"
   ),
