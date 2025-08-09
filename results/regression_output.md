@@ -9261,6 +9261,7 @@ Number of iterations: 102 (BFGS) + 6 (Fisher scoring)
   </tr>
 </tbody>
 </table>
+
 ## Proportion Correct Model
 
 ```
