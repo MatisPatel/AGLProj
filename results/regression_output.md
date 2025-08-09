@@ -6673,7 +6673,9 @@ Results averaged over the levels of: recurrence, laminations, grammartype</capti
 
 One of the findings is that input size heavily impacts performance. It is possible that the recurrent architectures are performing well on context-free and context-sensitive grammars because they are able to use a finite-state strategy when given a large enough input size. 
 
-Therefore, we need to see whether the effects are robust when we filter the data in that way.## Inverse Brier Score Model
+Therefore, we need to see whether the effects are robust when we filter the data in that way.
+
+## Inverse Brier Score Model
 
 ```
 Call:
@@ -9259,6 +9261,7 @@ Number of iterations: 102 (BFGS) + 6 (Fisher scoring)
   </tr>
 </tbody>
 </table>
+
 ## Proportion Correct Model
 
 ```
