@@ -1,6 +1,6 @@
 # Beta‑Regression Model Selection Report
 
-*Generated on: 2025‑08‑08 15:43*
+*Generated on: 2025‑08‑08 19:06*
 
 *Author*: Konstantinos Voudouris
 
@@ -1062,7 +1062,7 @@ M1g (maximal phi-model) is much improved on AIC/BIC and is equally performant on
 
 
 ### Heteroskedasticity Checks 
-*Plots saved separately as svg files*: `plots/best_model_inverse_brier_resid_dispersion.svg`, `plots/best_model_proportion_resid_dispersion.svg`
+*Plots saved separately as pdf files*: `plots/best_model_inverse_brier_resid_dispersion.pdf`, `plots/best_model_proportion_resid_dispersion.pdf`
 
 Breusch-Pagan tests confirm the heteroskedasticity:
 ```
