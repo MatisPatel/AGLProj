@@ -1637,7 +1637,7 @@ cat("# Exploring Input size\n\n")
 cat("One of the findings is that input size heavily impacts performance.",
     "It is possible that the recurrent architectures are performing well on context-free and context-sensitive",
     "grammars because they are able to use a finite-state strategy when given a large enough input size.",
-    "\n\nTherefore, we need to see whether the effects are robust when we filter the data in that way.")
+    "\n\nTherefore, we need to see whether the effects are robust when we filter the data in that way.\n\n")
 
 cat("## Inverse Brier Score Model\n\n")
 cat("```")
@@ -1746,7 +1746,7 @@ cat(kableExtra::kable(dplyr::transmute(as.data.frame(emm_neurons_inverse_brier_f
                                        `Asymptotic LCL` = exp(-exp(-asymp.LCL)),
                                        `Asymptotic UCL` = exp(-exp(-asymp.UCL))), digits = 8, caption = "Neurons EMMs (Inverse Brier Score)") |>
       kableExtra::kable_styling(full_width = FALSE), sep = "\n\n"  )
-
+cat("\n")
 cat("## Proportion Correct Model\n\n")
 cat("```")
 print(summary(filtered_model_proportion))
