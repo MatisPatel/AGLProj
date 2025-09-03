@@ -18,6 +18,9 @@ database.connect <- function(csv.name, dbPort = 3306){
   return(myDB)
 }
 
+colour_palette <- c("#1B9E77FF", "#D95F02FF", "#7570B3FF", "#E7298AFF", 
+                    "#66A61EFF", "#E6AB02FF", "#666666FF")
+
 # general plotter with mean ± CI
 plot_results <- function(data,
                          y,                 # string – column to plot on the y‑axis
@@ -65,6 +68,10 @@ plot_results <- function(data,
                         linewidth = 0.5,
                         show.legend = FALSE)
   
+  n_levels <- length(unique(data[[colour]]))
+  if (n_levels <= length(colour_palette)){
+    p <- p + ggplot2::scale_colour_manual(values = colour_palette)
+  }
   ## add facets, if requested
   if (!is.null(facet_sym)) {
     p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym))
@@ -140,7 +147,10 @@ plot_results_path <- function(data,
       ggplot2::aes(#colour = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS")),
         group = factor(!!csym, levels = c("SL","LT","LTT","LTTO","MSO","CF","CS"))),   # separate colour aesthetic → legend matches colour
       linewidth = 1
-    )
+    ) +
+    
+    # Apply custom color palette
+    ggplot2::scale_colour_manual(values = colour_palette)
   
   if (!is.null(ref_hline)) {
     p <- p + ggplot2::geom_hline(yintercept = ref_hline, 
@@ -235,7 +245,16 @@ plot_emm <- function(data,
       linetype = "dashed",
       colour   = "grey80",
       linewidth = 0.5,
-      show.legend = FALSE)
+      show.legend = FALSE) 
+  
+  n_levels <- length(unique(data[[colour]]))
+  if (n_levels <= length(colour_palette)){
+    p <- p + ggplot2::scale_colour_manual(values = colour_palette)
+  }
+  ## add facets, if requested
+  if (!is.null(facet_sym)) {
+    p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym))
+  }
   
   ## optional facet ------------------------------------------------------------
   if (!is.null(facet_sym)) {
@@ -321,7 +340,10 @@ plot_emm_path <- function(data,
                      fill = factor(!!csym, levels = col_levels)),
         linewidth = 0,
         show.legend = FALSE
-      )
+      ) +
+      
+      # Apply custom color palette
+      ggplot2::scale_colour_manual(values = colour_palette)
   } else {
     p <- p +
       ggplot2::geom_ribbon(

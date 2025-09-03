@@ -278,8 +278,9 @@ plot_results_path(
   dplyr::filter(post_training_data_summarised, recurrence != "FFN"),
   x     = "inputsize",
   y     = "Proportion Correct",
-  ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Proportion Correct`) + 0.001,
+  # ref_hline = mean(dplyr::filter(post_training_data_summarised, recurrence == "FFN")$`Proportion Correct`) + 0.001,
   colour  = "grammartype",
+  ci    = 0.95,
   facet = "recurrence",
   col_lab = "Grammar Type",
   file  = "plots/input_size_by_grammar_path_proportion.pdf",
@@ -871,7 +872,7 @@ emm_gram_lams_pairwise_inverse_brier <- kableExtra::kable(as.data.frame(pairs(em
   kableExtra::kable_styling(full_width = FALSE) 
 
 emm_lams_gram_proportion <- emmeans::emmeans(best_mod_proportion, ~ laminations * grammartype)
-emm_lams_gram_proportion_kable <- kableExtra::kable(dplyr::transmute(as.data.frame(emm_lams_gram_inverse_brier),
+emm_lams_gram_proportion_kable <- kableExtra::kable(dplyr::transmute(as.data.frame(emm_lams_gram_proportion),
                                                                      laminations = laminations,
                                                                      grammartype = grammartype,
                                                                      emmean = exp(-exp(-emmean)),
@@ -987,7 +988,7 @@ inputsize_kabel_inverse_brier <- kableExtra::kable(dplyr::transmute(as.data.fram
                                                                     emmean = exp(-exp(-emmean)),
                                                                     asymp.LCL = exp(-exp(-asymp.LCL)),
                                                                     asymp.UCL = exp(-exp(-asymp.UCL))), digits = 8,
-      caption = "Predicted mean inverse Brier score across input‑size grid\nResults averaged over the levels of: recurrence, laminations") |>
+      caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
   kableExtra::kable_styling(full_width = FALSE) 
 
 inputsize_kabel_inverse_brier_to_plot <- dplyr::transmute(as.data.frame(emm_input_inverse_brier),
@@ -1009,7 +1010,7 @@ inputsize_kabel_proportion <- kableExtra::kable(dplyr::transmute(as.data.frame(e
                                                                  emmean = exp(-exp(-emmean)),
                                                                  asymp.LCL = exp(-exp(-asymp.LCL)),
                                                                  asymp.UCL = exp(-exp(-asymp.UCL))), digits = 8,
-                                                   caption = "Predicted mean proportion correct across input‑size grid\nResults averaged over the levels of: recurrence, laminations") |>
+                                                   caption = "Input Size × Grammar EMMs (Proportion Correct)") |>
   kableExtra::kable_styling(full_width = FALSE)
 
 inputsize_kabel_proportion_to_plot <- dplyr::transmute(as.data.frame(emm_input_proportion),
@@ -1555,8 +1556,7 @@ cat(emm_rec_lams_pairwise_inverse_brier, sep = "\n\n")
 
 cat("\n### Input Size \n\n")
 
-cat(kableExtra::kable(emm_input_inverse_brier, digits = 8, caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
-        kableExtra::kable_styling(full_width = FALSE), sep = "\n\n"  )
+cat(inputsize_kabel_inverse_brier, sep = "\n\n")
 
 cat("\n### Slope of layers\n\n")
 
@@ -1590,8 +1590,7 @@ cat("\n### Laminations-Grammar Interaction\n\n")
 
 cat("\n#### Estimated Marginal Means (EMMs)\n\n")
 
-cat(kableExtra::kable(emm_lams_gram_proportion, digits = 8, caption = "Laminations × Grammar EMMs (Proportion Correct)") |>
-      kableExtra::kable_styling(full_width = FALSE) , sep = "\n\n")
+cat(emm_lams_gram_proportion_kable, sep = "\n\n")
 
 cat("\n#### Pairwise Contrasts  \n\n")
 
@@ -1619,8 +1618,7 @@ cat(emm_rec_lams_pairwise_proportion, sep = "\n\n")
 
 cat("\n### Input Size \n\n")
 
-cat(kableExtra::kable(emm_input_proportion, digits = 8, caption = "Input Size × Grammar EMMs (Inverse Brier Score)") |>
-      kableExtra::kable_styling(full_width = FALSE), sep = "\n\n" )
+cat(inputsize_kabel_proportion, sep = "\n\n" )
 
 cat("\n### Slope of layers\n\n")
 
