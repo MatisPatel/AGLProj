@@ -79,12 +79,12 @@ function build_model(num_neurons, num_layers, num_laminations, recurrence, gru, 
         return false
     end
 
-    if recurrence == false && input_size != length_strings*length_alphabet
-        if verbose
-            @warn "A feedforward network must have an input size of string length $(length_strings) * alphabet length $(length_alphabet) = $(length_strings*length_alphabet)."
-        end
-        return false
-    end
+    # if recurrence == false && input_size != length_strings*length_alphabet
+    #     if verbose
+    #         @warn "A feedforward network must have an input size of string length $(length_strings) * alphabet length $(length_alphabet) = $(length_strings*length_alphabet)."
+    #     end
+    #     return false
+    # end
 
     lam_splits = Int.(sort([floor(num_neurons*(k+1)/num_laminations) - 
                     floor(num_neurons*k / num_laminations) for k in 1:num_laminations], rev=true))
@@ -425,12 +425,13 @@ end
 function train_test_split(training_data::DataFrame, prop::Float32, 
     alphabet_length::Int, string_length::Int, rec::Bool, input_size::Int)::Tuple{AbstractArray, AbstractArray, AbstractArray, AbstractArray}
 
-    @assert (rec || input_size == string_length * alphabet_length) "Input size must be equal to string length * alphabet length for feedforward networks."
-
+    # @assert (rec || input_size == string_length * alphabet_length) "Input size must be equal to string length * alphabet length for feedforward networks."
+    @assert (input_size % alphabet_length == 0 && input_size ≤ alphabet_length * string_length) "Input size must be a positive multiple of the alphabet length, less than or equal to alphabet length * string length."
+    
     alphabet = collect('a':'z')[1:Int(alphabet_length)]
+    ngram_size = div(input_size, alphabet_length)
 
     if rec
-        ngram_size = div(input_size, alphabet_length)
         split_strings = [_expand_ngrams(collect(s), ngram_size) for s in training_data.string]
         flattened_strings = vcat(split_strings...)
         encodings = Float32.(vec(onehotbatch(flattened_strings, String(alphabet)))) # cast types to avoid promotion
@@ -438,11 +439,11 @@ function train_test_split(training_data::DataFrame, prop::Float32,
         encodings_matrix = reshape(encodings, ngram_size*alphabet_length, (string_length - ngram_size) + 1, :)
         labels = Float32.(training_data.error) # cast types to avoid promotion
     else
-        split_strings = [collect(s) for s in training_data.string]
+        split_strings = [collect(s)[(end-ngram_size)+1:end] for s in training_data.string] # we simulate RNNs without memory as FFNs by only giving them the last n-gram
         flattened_strings = vcat(split_strings...)
         encodings = Float32.(vec(onehotbatch(flattened_strings, String(alphabet)))) # cast types to avoid promotion
 
-        encodings_matrix = reshape(encodings, alphabet_length*string_length, :)
+        encodings_matrix = reshape(encodings, (alphabet_length*ngram_size), :)
         labels = Float32.(training_data.error') # cast types to avoid promotion; transpose for the FF nets
     end
 

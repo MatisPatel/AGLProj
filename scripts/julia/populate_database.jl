@@ -448,7 +448,10 @@ for neurs in min_num_neurons:neuron_increments:max_num_neurons
                     for rec in [true, false]
                         for gru in [true, false]
                             for res in [false] # [true, false]
-                                for inputsize in alphabet_length:alphabet_length:(alphabet_length * string_length) # the input size for each network - will be ignored for FFNs as they have no sequence memory.
+                                for inputsize in alphabet_length:alphabet_length:(alphabet_length * string_length) # the input size for each network - will generate for FFNs too.
+                                    if (((inputsize > alphabet_length * 2) && (inputsize != alphabet_length * string_length)) && rec == false) # only allow FFNs to have input sizes of up to 2-grams or full strings
+                                        continue
+                                    end
                                     model = build_model(neurs, lays, lams, rec, gru, ipool, opool, num_errors, string_length, alphabet_length, res, reservoir_scaling_factor, inputsize)
                                     if model != false
                                         println("Generating model with $(neurs) neurons, $(lays) layers, $(lams) laminations, $(inputsize) input size, recurrent = $(rec), gru = $(gru), input pooling = $(ipool), output pooling = $(opool), reservoir = $(res)")
@@ -457,6 +460,7 @@ for neurs in min_num_neurons:neuron_increments:max_num_neurons
                                         try
                                             DBInterface.execute(con, query)
                                         catch
+                                            println("A non-unique model was found for model with $(neurs) neurons, $(lays) layers, $(lams) laminations, $(inputsize) input size, recurrent = $(rec), gru = $(gru), input pooling = $(ipool), output pooling = $(opool), reservoir = $(res).")
                                             continue
                                         end
                                     end

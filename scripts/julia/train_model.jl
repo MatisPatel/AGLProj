@@ -124,7 +124,7 @@ if nrow(grammars_from_db) > 0
         grammar_query = string("SELECT * FROM strings WHERE grammarid = $(grammar_id) AND stringlength = $(string_length);") 
         training_data = DBInterface.execute(con, grammar_query) |> DataFrame |> shuffle # get the strings for the ith grammar
         
-        for models in collect(Iterators.partition(model_list, n_procs*15)) # batch up the models 
+        for models in collect(Iterators.partition(model_list, n_procs*20)) # batch up the models 
             results = @distributed (vcat) for m in models
                 model = m[1]
                 model_id = m[2]
