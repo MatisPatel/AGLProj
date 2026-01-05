@@ -546,12 +546,13 @@ function train_and_store(model::AGLModel, opt::Optimisers.AbstractRule, training
         train_str, test_str =  ["Train"], ["Test"]
         out_data.trainteststring = vcat(repeat(train_str, size(train_x)[end]), repeat(test_str, size(test_x)[end]))
         select!(out_data, Not([:string, :stringlength, :stringnumberencoding]))
-
+        filter!([:pretrainprobs, :posttrainprobs] => (pretrainprobs, posttrainprobs) -> !isnan(pretrainprobs) && !isnan(posttrainprobs), out_data)
         acc_losses = DataFrame(epoch = outputs["epochs"],
                                 batch = outputs["batches"],
                                 loss = outputs["losses"],
                                 train_brier = outputs["briers_train"],
                                 test_brier = outputs["briers_test"])
+        filter!([:loss, :train_brier, :test_brier] => (loss, train_brier, test_brier) -> !isnan(loss) && !isnan(train_brier) && !isnan(test_brier), acc_losses)
 
         return out_data, acc_losses
     catch
