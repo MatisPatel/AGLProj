@@ -67,8 +67,10 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
                                       ),
                     `Brier Skill Score` = 1 - (`Brier Score`/0.25) # The reference is 0.25 assuming 500 grammatical and 500 ungrammatical strings per grammar.
                     )
-    
-    write.csv(post_training_data_summarised, "data/data_summary.csv", row.names = FALSE)
+    num_rows = nrow(post_training_data_summarised)
+    half <- floor(num_rows / 2)
+    write.csv(post_training_data_summarised[1:half, ], "data/data_summary1.csv", row.names = FALSE)
+    write.csv(post_training_data_summarised[(half + 1):num_rows, ], "data/data_summary2.csv", row.names = FALSE)
 
     DBI::dbDisconnect(myDB)
     
@@ -77,7 +79,8 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
 
 } else {
     cat("Loading data from file...\n")
-    post_training_data_summarised <- read.csv("data/data_summary.csv", stringsAsFactors = FALSE) |>
+    post_training_data_summarised <- read.csv("data/data_summary1.csv", stringsAsFactors = FALSE) |>
+      dplyr::bind_rows(read.csv("data/data_summary2.csv", stringsAsFactors = FALSE)) |>
       dplyr::rename(`Brier Score` = `Brier.Score`,
                     `Inverse Brier Score` = `Inverse.Brier.Score`,
                     `Proportion Correct` = `Proportion.Correct`,
