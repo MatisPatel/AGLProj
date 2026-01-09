@@ -1,6 +1,6 @@
 *.csv
 !src/user_database_connection.csv
-!data/data_summary.csv
+!data/data_summary*.csv
 *KV.jl
 *.bson 
 *.html
