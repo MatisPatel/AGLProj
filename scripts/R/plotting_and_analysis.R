@@ -22,7 +22,7 @@ recollect_database_data <- FALSE
 #################################################################################################################################
 # 0. Summarise data and store
 
-if (recollect_database_data || !file.exists("data/data_summary.csv")) {
+if (recollect_database_data || (!file.exists("data/data_summary1.csv") && !file.exists("data/data_summary2.csv"))) {
     cat("Recollecting database data...\n")
     myDB <- database.connect("database_connection.csv")
 
@@ -46,7 +46,7 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
     cat("Summarising...\n")
 
     post_training_data_summarised <- post_training_data |>
-      dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2),
+      dplyr::mutate(root_squared_error = sqrt((posttrainprobs - error)^2), # incorrect, ignore
                     correct_binary = (posttrainprobs >= 0.5) == error) |>
       dplyr::group_by(grammarid, modelid, kgrams, grammarsubtype, neurons, layers, inputsize, laminations, recurrence, gru) |>
       dplyr::summarise(`Brier Score` = sum(root_squared_error)/dplyr::n(),
@@ -75,7 +75,7 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
     DBI::dbDisconnect(myDB)
     
     post_training_data_summarised <- post_training_data_summarised |>
-      dplyr::mutate(inputsize/6)
+      dplyr::mutate(inputsize = inputsize/6)
 
 } else {
     cat("Loading data from file...\n")
@@ -92,6 +92,10 @@ if (recollect_database_data || !file.exists("data/data_summary.csv")) {
 
 }
 
+sequential_ffn_baselines <- post_training_data_summarised |>
+  dplyr::filter(recurrence == "FFN" & inputsize <= 2)
+post_training_data_summarised <- post_training_data_summarised |>
+  dplyr::filter(!(recurrence == "FFN" & inputsize <= 2))
 
 
 #################################################################################################################################
@@ -107,7 +111,8 @@ plot_results(
   colour  = "recurrence",
   col_lab = "Architecture Type",
   file  = "plots/grammar_by_architecture_type_point_brier_skill_score.pdf",
-  width = 15, height = 8
+  width = 15, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -116,7 +121,8 @@ plot_results(
   colour  = "recurrence",
   col_lab = "Architecture Type",
   file  = "plots/grammar_by_architecture_type_point_brier_score_raw.pdf",
-  width = 15, height = 8
+  width = 15, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -125,7 +131,8 @@ plot_results(
   colour  = "recurrence",
   col_lab = "Architecture Type",
   file  = "plots/grammar_by_architecture_type_point_brier_score_inverse.pdf",
-  width = 15, height = 8
+  width = 15, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -134,7 +141,8 @@ plot_results(
   colour  = "recurrence",
   col_lab = "Architecture Type",
   file  = "plots/grammar_by_architecture_type_point_proportion.pdf",
-  width = 15, height = 8
+  width = 15, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 # --- Plotting with input sizes that minimize risk of finite-state solutions ---
@@ -301,7 +309,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Neurons",
   file  = "plots/grammar_by_neurons_point_brier_skill_score.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -312,7 +321,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Neurons",
   file  = "plots/grammar_by_neurons_point_brier_score_raw.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -323,7 +333,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Neurons",
   file  = "plots/grammar_by_neurons_point_brier_score_inverse.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -334,7 +345,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Neurons",
   file  = "plots/grammar_by_neurons_point_proportion.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 cat("Plotting laminations...\n")
@@ -346,7 +358,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Laminations",
   file  = "plots/grammar_by_laminations_point_brier_skill_score.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -356,7 +369,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Laminations",
   file  = "plots/grammar_by_laminations_point_brier_score_raw.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -366,7 +380,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Laminations",
   file  = "plots/grammar_by_laminations_point_brier_score_inverse.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -376,7 +391,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Laminations",
   file  = "plots/grammar_by_laminations_point_proportion.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 cat("Plotting layers...\n")
@@ -388,7 +404,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Layers",
   file  = "plots/grammar_by_layers_point_brier_skill_score.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -398,7 +415,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Layers",
   file  = "plots/grammar_by_layers_point_brier_score_raw.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -408,7 +426,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Layers",
   file  = "plots/grammar_by_layers_point_brier_score_inverse.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 plot_results(
@@ -418,7 +437,8 @@ plot_results(
   facet = "recurrence",
   col_lab = "Layers",
   file  = "plots/grammar_by_layers_point_proportion.pdf",
-  width = 24, height = 8
+  width = 24, height = 8,
+  baseline_data = sequential_ffn_baselines
 )
 
 #################################################################################################################################

@@ -30,11 +30,13 @@ plot_results <- function(data,
                          ci = 0.99,         # width of the normal‑theory CI
                          xlab = "Grammar Type",
                          ylab = NULL,       # defaults to `y` if missing
-                         col_lab = NULL,   # defaults to `fill` if missing
+                         col_lab = NULL,    # defaults to `fill` if missing
                          facet_lab = NULL,  # defaults to `facet` if missing
-                         file = NULL,       # file name to save (NULL → don’t save)
+                         file = NULL,       # file name to save (NULL → don't save)
                          width = 16,
-                         height = 8) {
+                         height = 8,
+                         baseline_data = NULL,
+                         baseline_label = "Sequential FFN") {
   
   ## convert strings → symbols for tidy‑eval
   xsym   <- rlang::sym("grammartype")
@@ -68,10 +70,44 @@ plot_results <- function(data,
                         linewidth = 0.5,
                         show.legend = FALSE)
   
+  ## add baseline lines, if provided ------------------------------------------
+  if (!is.null(baseline_data)) {
+    # Compute mean baseline value per grammar type (and facet if applicable)
+    group_vars <- "grammartype"
+    if (!is.null(facet)) {
+      group_vars <- c(group_vars, facet)
+    }
+    
+    baseline_summary <- baseline_data |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
+      dplyr::summarise(baseline_y = mean(!!ysym, na.rm = TRUE), .groups = "drop") |>
+      dplyr::mutate(
+        grammartype = factor(grammartype, levels = x_levels),
+        xmin = as.numeric(grammartype) - 0.45,
+        xmax = as.numeric(grammartype) + 0.45
+      )
+    
+    p <- p +
+      ggplot2::geom_segment(
+        data = baseline_summary,
+        ggplot2::aes(x = xmin, xend = xmax,
+                     y = baseline_y, yend = baseline_y,
+                     linetype = baseline_label),
+        colour = "black",
+        linewidth = 1,
+        inherit.aes = FALSE
+      ) +
+      ggplot2::scale_linetype_manual(
+        values = setNames("dashed", baseline_label),
+        name = NULL
+      )
+  }
+  
   n_levels <- length(unique(data[[colour]]))
-  if (n_levels <= length(colour_palette)){
+  if (n_levels <= length(colour_palette)) {
     p <- p + ggplot2::scale_colour_manual(values = colour_palette)
   }
+  
   ## add facets, if requested
   if (!is.null(facet_sym)) {
     p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym))
@@ -90,7 +126,7 @@ plot_results <- function(data,
     ) +
     ggplot2::xlab(xlab) +
     ggplot2::ylab(if (is.null(ylab)) y else ylab) +
-    ggplot2::guides(colour = ggplot2::guide_legend(title = if (is.null(col_lab) ) colour else col_lab))
+    ggplot2::guides(colour = ggplot2::guide_legend(title = if (is.null(col_lab)) colour else col_lab))
   
   ## save, if asked -----------------------------------------------------------
   if (!is.null(file)) ggplot2::ggsave(filename = file, plot = p, width = width, height = height)
