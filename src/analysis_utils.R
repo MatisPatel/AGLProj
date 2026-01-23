@@ -325,6 +325,140 @@ plot_emm <- function(data,
   return(p)
 }
 
+# Plotting for emmeans from regressions with reference line (for sequential FFNs)
+plot_emm_ref_line <- function(data,
+                     x        = "Grammar Type",   # column mapped to the x-axis
+                     y        = "Inverse Brier Score",
+                     colour   = "Architecture",
+                     ymin     = "lcl",            # lower-CI column
+                     ymax     = "ucl",            # upper-CI column
+                     facet    = NULL,             # optional facet column
+                     x_levels = c("SL","LT","LTT","LTTO","MSO","CF","CS"),
+                     xlab     = "Grammar Type",
+                     ylab     = "Inverse Brier Score",
+                     col_lab  = "Architecture",
+                     facet_lab = NULL,
+                     position_dodge_width = 0.6,
+                     ref_level = NULL,            # level of colour variable for reference line
+                     ref_colour = NULL,           # colour of reference line (defaults to level's colour)
+                     ref_linewidth = 1.5,         # width of the reference line
+                     ref_width = 0.8,             # width of the reference bar (as proportion of x spacing)
+                     file     = NULL,
+                     width    = 16,
+                     height   = 8) {
+  
+  ## tidy-eval handles ---------------------------------------------------------
+  xsym      <- rlang::sym(x)
+  ysym      <- rlang::sym(y)
+  csym      <- rlang::sym(colour)
+  ymin_sym  <- rlang::sym(ymin)
+  ymax_sym  <- rlang::sym(ymax)
+  facet_sym <- if (!is.null(facet)) rlang::sym(facet) else NULL
+  
+  ## separate reference level data from plot data ------------------------------
+  if (!is.null(ref_level)) {
+    ref_data <- data[data[[colour]] == ref_level, ]
+    plot_data <- data[data[[colour]] != ref_level, ]
+  } else {
+    ref_data <- NULL
+    plot_data <- data
+  }
+  
+  ## core plot -----------------------------------------------------------------
+  p <- ggplot2::ggplot(
+    plot_data,
+    ggplot2::aes(x = factor(!!xsym, levels = x_levels),
+                 y = !!ysym,
+                 colour = !!csym,
+                 group = !!csym)) +
+    
+    # error bars: CI already in the data
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = !!ymin_sym, ymax = !!ymax_sym),
+      position = ggplot2::position_dodge(width = position_dodge_width),
+      width = 0.2,
+      linewidth = 1) +
+    
+    # points: estimated marginal means
+    ggplot2::geom_point(size = 6,
+                        position = ggplot2::position_dodge(width = position_dodge_width)) +
+    
+    # dashed separators between grammar categories
+    ggplot2::geom_vline(
+      xintercept = seq(1.5, length(x_levels) - 0.5, by = 1),
+      linetype = "dashed",
+      colour   = "grey80",
+      linewidth = 0.5,
+      show.legend = FALSE)
+  
+  ## add reference line segments for specified level ---------------------------
+  if (!is.null(ref_level) && nrow(ref_data) > 0) {
+    # Create numeric x positions for segments
+    ref_data$x_num <- match(ref_data[[x]], x_levels)
+    ref_data$xmin <- ref_data$x_num - ref_width / 2
+    ref_data$xmax <- ref_data$x_num + ref_width / 2
+    
+    # Determine line colour
+    if (is.null(ref_colour)) {
+      # Find the index of the reference level in the colour variable
+      colour_levels <- unique(data[[colour]])
+      ref_idx <- which(colour_levels == ref_level)
+      if (ref_idx <= length(colour_palette)) {
+        ref_colour <- colour_palette[ref_idx]
+      } else {
+        ref_colour <- "grey50"
+      }
+    }
+    
+    p <- p + ggplot2::geom_segment(
+      data = ref_data,
+      ggplot2::aes(x = xmin, xend = xmax, 
+                   y = !!ysym, yend = !!ysym),
+      linetype = "dashed",
+      colour = ref_colour,
+      linewidth = ref_linewidth,
+      inherit.aes = FALSE,
+      show.legend = FALSE)
+  }
+  
+  n_levels <- length(unique(plot_data[[colour]]))
+  if (n_levels <= length(colour_palette)){
+    p <- p + ggplot2::scale_colour_manual(values = colour_palette)
+  }
+  
+  ## optional facet ------------------------------------------------------------
+  if (!is.null(facet_sym)) {
+    p <- p + ggplot2::facet_grid(cols = ggplot2::vars(!!facet_sym),
+                                 labeller = if (is.null(facet_lab)) "label_value"
+                                 else ggplot2::labeller(.cols = setNames(list(facet_lab),
+                                                                         facet)))
+  }
+  
+  ## theme, labels -------------------------------------------------------------
+  p <- p +
+    ggplot2::theme_minimal(base_size = 30) +
+    ggplot2::theme(
+      axis.text.x      = ggplot2::element_text(angle = 0, vjust = 0.5, hjust = 0.5),
+      panel.grid.major = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.border     = ggplot2::element_rect(colour = "grey80", fill = NA,
+                                               linewidth = 0.5),
+      panel.spacing    = grid::unit(1, "lines"),
+      legend.text      = ggplot2::element_text(size = 30),
+      legend.title     = ggplot2::element_text(size = 30)
+    ) +
+    ggplot2::xlab(xlab) +
+    ggplot2::ylab(ylab) +
+    ggplot2::guides(colour = ggplot2::guide_legend(title = col_lab))
+  
+  ## save to file (optional) ---------------------------------------------------
+  if (!is.null(file)) {
+    ggplot2::ggsave(filename = file, plot = p, width = width, height = height)
+  }
+  
+  return(p)
+}
+
 # Plotting for emmeans paths from regressions
 plot_emm_path <- function(data,
                           x        = "inputsize",

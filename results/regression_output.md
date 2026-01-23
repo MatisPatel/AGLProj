@@ -11621,3 +11621,5132 @@ Number of iterations: 113 (BFGS) + 15 (Fisher scoring)
 
 
 
+# Exploring Sequential FFNs
+
+We also fitted models including sequential FFNs to see whether the effects are robust to their inclusion. These models were trained to process the entire input sequence sequentially, one symbol at a time, rather than all at once. Because these models have no hidden states, we did not actually run them on the full sequences, instead we trained them to predict the class from the final 1- or 2-character sequence of the string. This simulates how the FFN would have processed the string, with each forward pass on a new substring wiping any previous knowledge from it. We did not train the model to predic the class from every sub-string (only the final one), as doing that would not be comparable to models that process strings in-context, such as RNNs.## Inverse Brier Score Model
+
+```
+Call:
+betareg::betareg(formula = formulas_inverse_brier_phi$M1g, data = df_with_sequential_ffns, 
+    link = "loglog")
+
+Quantile residuals:
+     Min       1Q   Median       3Q      Max 
+-10.8634  -0.6808   0.1225   0.7386   3.9177 
+
+Coefficients (mean model with loglog link):
+                                                  Estimate Std. Error z value
+(Intercept)                                      4.216e+00  3.350e-02 125.854
+recurrenceFFN (Sequential)                      -2.289e+00  3.573e-02 -64.081
+recurrenceRNN                                   -5.189e-01  2.868e-02 -18.091
+recurrenceGRU                                    4.257e-01  2.866e-02  14.854
+laminationsLaminated                            -4.049e-02  1.228e-02  -3.296
+inputsize                                       -1.519e-01  1.689e-03 -89.946
+grammartypeLT                                   -1.631e+00  3.817e-02 -42.740
+grammartypeLTT                                  -1.206e+00  3.647e-02 -33.072
+grammartypeLTTO                                 -1.427e+00  3.823e-02 -37.327
+grammartypeMSO                                  -1.813e+00  3.417e-02 -53.054
+grammartypeCS                                   -1.811e+00  3.445e-02 -52.561
+grammartypeCF                                   -2.088e+00  3.449e-02 -60.539
+neurons                                          1.205e-05  6.786e-07  17.754
+layers                                          -8.211e-04  7.789e-05 -10.541
+recurrenceFFN (Sequential):grammartypeLT         2.404e-01  3.974e-02   6.050
+recurrenceRNN:grammartypeLT                      2.140e-01  3.277e-02   6.530
+recurrenceGRU:grammartypeLT                     -3.267e-02  3.268e-02  -1.000
+recurrenceFFN (Sequential):grammartypeLTT       -7.387e-02  3.824e-02  -1.932
+recurrenceRNN:grammartypeLTT                     7.357e-02  3.102e-02   2.372
+recurrenceGRU:grammartypeLTT                    -1.994e-01  3.087e-02  -6.459
+recurrenceFFN (Sequential):grammartypeLTTO       2.001e-01  3.983e-02   5.023
+recurrenceRNN:grammartypeLTTO                    1.064e-01  3.276e-02   3.250
+recurrenceGRU:grammartypeLTTO                   -3.023e-01  3.261e-02  -9.271
+recurrenceFFN (Sequential):grammartypeMSO        2.498e-01  3.632e-02   6.877
+recurrenceRNN:grammartypeMSO                    -1.864e-01  2.960e-02  -6.299
+recurrenceGRU:grammartypeMSO                    -1.056e+00  2.969e-02 -35.546
+recurrenceFFN (Sequential):grammartypeCS         5.881e-01  3.647e-02  16.124
+recurrenceRNN:grammartypeCS                      4.584e-01  2.922e-02  15.688
+recurrenceGRU:grammartypeCS                      3.475e-01  2.923e-02  11.887
+recurrenceFFN (Sequential):grammartypeCF         7.895e-01  3.657e-02  21.591
+recurrenceRNN:grammartypeCF                      1.950e-01  2.945e-02   6.620
+recurrenceGRU:grammartypeCF                     -1.752e-01  2.943e-02  -5.952
+grammartypeLT:laminationsLaminated               1.107e-02  1.106e-02   1.001
+grammartypeLTT:laminationsLaminated              1.217e-02  1.118e-02   1.089
+grammartypeLTTO:laminationsLaminated             1.920e-02  1.147e-02   1.673
+grammartypeMSO:laminationsLaminated              4.743e-03  1.085e-02   0.437
+grammartypeCS:laminationsLaminated              -1.645e-02  1.095e-02  -1.503
+grammartypeCF:laminationsLaminated              -6.135e-03  1.092e-02  -0.562
+recurrenceFFN (Sequential):laminationsLaminated  3.633e-02  6.282e-03   5.784
+recurrenceRNN:laminationsLaminated              -1.189e-01  6.765e-03 -17.579
+recurrenceGRU:laminationsLaminated              -5.509e-02  6.771e-03  -8.136
+grammartypeLT:inputsize                          8.792e-02  1.944e-03  45.234
+grammartypeLTT:inputsize                         5.589e-02  1.883e-03  29.672
+grammartypeLTTO:inputsize                        1.003e-01  1.950e-03  51.418
+grammartypeMSO:inputsize                         1.474e-01  1.700e-03  86.684
+grammartypeCS:inputsize                          1.434e-01  1.781e-03  80.531
+grammartypeCF:inputsize                          1.999e-01  1.759e-03 113.626
+                                                Pr(>|z|)    
+(Intercept)                                      < 2e-16 ***
+recurrenceFFN (Sequential)                       < 2e-16 ***
+recurrenceRNN                                    < 2e-16 ***
+recurrenceGRU                                    < 2e-16 ***
+laminationsLaminated                            0.000979 ***
+inputsize                                        < 2e-16 ***
+grammartypeLT                                    < 2e-16 ***
+grammartypeLTT                                   < 2e-16 ***
+grammartypeLTTO                                  < 2e-16 ***
+grammartypeMSO                                   < 2e-16 ***
+grammartypeCS                                    < 2e-16 ***
+grammartypeCF                                    < 2e-16 ***
+neurons                                          < 2e-16 ***
+layers                                           < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLT        1.45e-09 ***
+recurrenceRNN:grammartypeLT                     6.57e-11 ***
+recurrenceGRU:grammartypeLT                     0.317439    
+recurrenceFFN (Sequential):grammartypeLTT       0.053358 .  
+recurrenceRNN:grammartypeLTT                    0.017708 *  
+recurrenceGRU:grammartypeLTT                    1.05e-10 ***
+recurrenceFFN (Sequential):grammartypeLTTO      5.09e-07 ***
+recurrenceRNN:grammartypeLTTO                   0.001156 ** 
+recurrenceGRU:grammartypeLTTO                    < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeMSO       6.10e-12 ***
+recurrenceRNN:grammartypeMSO                    3.00e-10 ***
+recurrenceGRU:grammartypeMSO                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCS         < 2e-16 ***
+recurrenceRNN:grammartypeCS                      < 2e-16 ***
+recurrenceGRU:grammartypeCS                      < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCF         < 2e-16 ***
+recurrenceRNN:grammartypeCF                     3.60e-11 ***
+recurrenceGRU:grammartypeCF                     2.65e-09 ***
+grammartypeLT:laminationsLaminated              0.316894    
+grammartypeLTT:laminationsLaminated             0.276060    
+grammartypeLTTO:laminationsLaminated            0.094297 .  
+grammartypeMSO:laminationsLaminated             0.662025    
+grammartypeCS:laminationsLaminated              0.132779    
+grammartypeCF:laminationsLaminated              0.574353    
+recurrenceFFN (Sequential):laminationsLaminated 7.28e-09 ***
+recurrenceRNN:laminationsLaminated               < 2e-16 ***
+recurrenceGRU:laminationsLaminated              4.09e-16 ***
+grammartypeLT:inputsize                          < 2e-16 ***
+grammartypeLTT:inputsize                         < 2e-16 ***
+grammartypeLTTO:inputsize                        < 2e-16 ***
+grammartypeMSO:inputsize                         < 2e-16 ***
+grammartypeCS:inputsize                          < 2e-16 ***
+grammartypeCF:inputsize                          < 2e-16 ***
+
+Phi coefficients (precision model with log link):
+                                                  Estimate Std. Error z value
+(Intercept)                                      2.233e+00  3.743e-02  59.659
+recurrenceFFN (Sequential)                      -1.968e+00  3.926e-02 -50.119
+recurrenceRNN                                   -3.940e-01  3.179e-02 -12.394
+recurrenceGRU                                    9.354e-01  3.202e-02  29.212
+laminationsLaminated                            -4.436e-02  1.769e-02  -2.507
+inputsize                                       -1.029e-01  1.891e-03 -54.400
+grammartypeLT                                    5.767e-01  4.968e-02  11.607
+grammartypeLTT                                   8.912e-01  4.962e-02  17.960
+grammartypeLTTO                                  7.058e-01  5.010e-02  14.088
+grammartypeMSO                                   1.572e+00  4.308e-02  36.493
+grammartypeCS                                    1.075e+00  4.020e-02  26.746
+grammartypeCF                                    1.402e+00  4.020e-02  34.869
+neurons                                          2.782e-04  8.051e-06  34.559
+layers                                          -2.859e-02  1.043e-03 -27.402
+recurrenceFFN (Sequential):grammartypeLT         4.713e+00  5.327e-02  88.474
+recurrenceRNN:grammartypeLT                     -2.287e-01  4.258e-02  -5.371
+recurrenceGRU:grammartypeLT                     -6.078e-01  4.283e-02 -14.190
+recurrenceFFN (Sequential):grammartypeLTT        3.553e+00  5.319e-02  66.804
+recurrenceRNN:grammartypeLTT                    -3.569e-01  4.249e-02  -8.399
+recurrenceGRU:grammartypeLTT                    -5.398e-01  4.270e-02 -12.641
+recurrenceFFN (Sequential):grammartypeLTTO       3.191e+00  5.358e-02  59.559
+recurrenceRNN:grammartypeLTTO                   -2.797e-01  4.297e-02  -6.510
+recurrenceGRU:grammartypeLTTO                   -6.680e-01  4.316e-02 -15.476
+recurrenceFFN (Sequential):grammartypeMSO        7.921e+00  4.609e-02 171.865
+recurrenceRNN:grammartypeMSO                    -1.756e+00  3.721e-02 -47.188
+recurrenceGRU:grammartypeMSO                    -3.489e+00  3.744e-02 -93.200
+recurrenceFFN (Sequential):grammartypeCS         2.537e+00  4.242e-02  59.811
+recurrenceRNN:grammartypeCS                     -7.785e-01  3.411e-02 -22.820
+recurrenceGRU:grammartypeCS                     -1.459e+00  3.436e-02 -42.471
+recurrenceFFN (Sequential):grammartypeCF         2.017e+00  4.243e-02  47.543
+recurrenceRNN:grammartypeCF                     -8.159e-01  3.421e-02 -23.851
+recurrenceGRU:grammartypeCF                     -1.549e+00  3.444e-02 -44.976
+grammartypeLT:laminationsLaminated              -3.855e-02  1.541e-02  -2.501
+grammartypeLTT:laminationsLaminated             -3.526e-02  1.564e-02  -2.254
+grammartypeLTTO:laminationsLaminated            -3.881e-02  1.567e-02  -2.477
+grammartypeMSO:laminationsLaminated              4.616e-02  1.360e-02   3.394
+grammartypeCS:laminationsLaminated               1.455e-02  1.284e-02   1.133
+grammartypeCF:laminationsLaminated              -7.572e-02  1.285e-02  -5.895
+recurrenceFFN (Sequential):laminationsLaminated  7.349e-02  1.624e-02   4.525
+recurrenceRNN:laminationsLaminated              -7.355e-02  1.409e-02  -5.220
+recurrenceGRU:laminationsLaminated              -6.904e-03  1.413e-02  -0.489
+grammartypeLT:inputsize                          6.483e-02  2.520e-03  25.722
+grammartypeLTT:inputsize                         9.614e-02  2.519e-03  38.171
+grammartypeLTTO:inputsize                        8.462e-02  2.539e-03  33.334
+grammartypeMSO:inputsize                         9.362e-02  2.137e-03  43.813
+grammartypeCS:inputsize                          1.159e-01  2.070e-03  55.987
+grammartypeCF:inputsize                          8.563e-02  2.058e-03  41.617
+                                                Pr(>|z|)    
+(Intercept)                                      < 2e-16 ***
+recurrenceFFN (Sequential)                       < 2e-16 ***
+recurrenceRNN                                    < 2e-16 ***
+recurrenceGRU                                    < 2e-16 ***
+laminationsLaminated                            0.012175 *  
+inputsize                                        < 2e-16 ***
+grammartypeLT                                    < 2e-16 ***
+grammartypeLTT                                   < 2e-16 ***
+grammartypeLTTO                                  < 2e-16 ***
+grammartypeMSO                                   < 2e-16 ***
+grammartypeCS                                    < 2e-16 ***
+grammartypeCF                                    < 2e-16 ***
+neurons                                          < 2e-16 ***
+layers                                           < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLT         < 2e-16 ***
+recurrenceRNN:grammartypeLT                     7.84e-08 ***
+recurrenceGRU:grammartypeLT                      < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLTT        < 2e-16 ***
+recurrenceRNN:grammartypeLTT                     < 2e-16 ***
+recurrenceGRU:grammartypeLTT                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLTTO       < 2e-16 ***
+recurrenceRNN:grammartypeLTTO                   7.54e-11 ***
+recurrenceGRU:grammartypeLTTO                    < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeMSO        < 2e-16 ***
+recurrenceRNN:grammartypeMSO                     < 2e-16 ***
+recurrenceGRU:grammartypeMSO                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCS         < 2e-16 ***
+recurrenceRNN:grammartypeCS                      < 2e-16 ***
+recurrenceGRU:grammartypeCS                      < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCF         < 2e-16 ***
+recurrenceRNN:grammartypeCF                      < 2e-16 ***
+recurrenceGRU:grammartypeCF                      < 2e-16 ***
+grammartypeLT:laminationsLaminated              0.012393 *  
+grammartypeLTT:laminationsLaminated             0.024191 *  
+grammartypeLTTO:laminationsLaminated            0.013246 *  
+grammartypeMSO:laminationsLaminated             0.000689 ***
+grammartypeCS:laminationsLaminated              0.257313    
+grammartypeCF:laminationsLaminated              3.75e-09 ***
+recurrenceFFN (Sequential):laminationsLaminated 6.03e-06 ***
+recurrenceRNN:laminationsLaminated              1.79e-07 ***
+recurrenceGRU:laminationsLaminated              0.625162    
+grammartypeLT:inputsize                          < 2e-16 ***
+grammartypeLTT:inputsize                         < 2e-16 ***
+grammartypeLTTO:inputsize                        < 2e-16 ***
+grammartypeMSO:inputsize                         < 2e-16 ***
+grammartypeCS:inputsize                          < 2e-16 ***
+grammartypeCF:inputsize                          < 2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1 
+
+Type of estimator: ML (maximum likelihood)
+Log-likelihood: 1.743e+06 on 94 Df
+Pseudo R-squared: 0.2524
+Number of iterations: 138 (BFGS) + 10 (Fisher scoring) 
+```
+
+
+### Recurrence-Grammar Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Recurrence × Grammar Type EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Architecture </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9614724 </td>
+   <td style="text-align:right;"> 0.9593567 </td>
+   <td style="text-align:right;"> 0.9634801 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.6833553 </td>
+   <td style="text-align:right;"> 0.6738553 </td>
+   <td style="text-align:right;"> 0.6926452 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9323398 </td>
+   <td style="text-align:right;"> 0.9312232 </td>
+   <td style="text-align:right;"> 0.9334389 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9739605 </td>
+   <td style="text-align:right;"> 0.9735524 </td>
+   <td style="text-align:right;"> 0.9743625 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8917063 </td>
+   <td style="text-align:right;"> 0.8885775 </td>
+   <td style="text-align:right;"> 0.8947525 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.4175530 </td>
+   <td style="text-align:right;"> 0.4141183 </td>
+   <td style="text-align:right;"> 0.4209836 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8478906 </td>
+   <td style="text-align:right;"> 0.8464118 </td>
+   <td style="text-align:right;"> 0.8493566 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.9235528 </td>
+   <td style="text-align:right;"> 0.9228484 </td>
+   <td style="text-align:right;"> 0.9242510 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.9124036 </td>
+   <td style="text-align:right;"> 0.9104707 </td>
+   <td style="text-align:right;"> 0.9142968 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.3842422 </td>
+   <td style="text-align:right;"> 0.3810446 </td>
+   <td style="text-align:right;"> 0.3874386 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8590999 </td>
+   <td style="text-align:right;"> 0.8578931 </td>
+   <td style="text-align:right;"> 0.8602973 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.9276059 </td>
+   <td style="text-align:right;"> 0.9270830 </td>
+   <td style="text-align:right;"> 0.9281251 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.9175379 </td>
+   <td style="text-align:right;"> 0.9151196 </td>
+   <td style="text-align:right;"> 0.9198903 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.5052166 </td>
+   <td style="text-align:right;"> 0.5015705 </td>
+   <td style="text-align:right;"> 0.5088505 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8711310 </td>
+   <td style="text-align:right;"> 0.8698655 </td>
+   <td style="text-align:right;"> 0.8723851 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.9247841 </td>
+   <td style="text-align:right;"> 0.9241455 </td>
+   <td style="text-align:right;"> 0.9254174 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.9096624 </td>
+   <td style="text-align:right;"> 0.9084905 </td>
+   <td style="text-align:right;"> 0.9108200 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.4893242 </td>
+   <td style="text-align:right;"> 0.4886665 </td>
+   <td style="text-align:right;"> 0.4899816 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8159281 </td>
+   <td style="text-align:right;"> 0.8146506 </td>
+   <td style="text-align:right;"> 0.8171979 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8330179 </td>
+   <td style="text-align:right;"> 0.8316060 </td>
+   <td style="text-align:right;"> 0.8344192 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9067238 </td>
+   <td style="text-align:right;"> 0.9056868 </td>
+   <td style="text-align:right;"> 0.9077500 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.5903827 </td>
+   <td style="text-align:right;"> 0.5885143 </td>
+   <td style="text-align:right;"> 0.5922459 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8954815 </td>
+   <td style="text-align:right;"> 0.8949594 </td>
+   <td style="text-align:right;"> 0.8960012 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9546071 </td>
+   <td style="text-align:right;"> 0.9543470 </td>
+   <td style="text-align:right;"> 0.9548657 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.9139131 </td>
+   <td style="text-align:right;"> 0.9127979 </td>
+   <td style="text-align:right;"> 0.9150147 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.6729318 </td>
+   <td style="text-align:right;"> 0.6714258 </td>
+   <td style="text-align:right;"> 0.6744326 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8762695 </td>
+   <td style="text-align:right;"> 0.8757207 </td>
+   <td style="text-align:right;"> 0.8768161 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.9305058 </td>
+   <td style="text-align:right;"> 0.9301881 </td>
+   <td style="text-align:right;"> 0.9308220 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Architectures By Grammar Type (Inverse Brier Score) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> grammartype </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 2.27116196 </td>
+   <td style="text-align:right;"> 0.03561777 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 63.764850 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.57836674 </td>
+   <td style="text-align:right;"> 0.02851871 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 20.280255 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -0.39817948 </td>
+   <td style="text-align:right;"> 0.02849796 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.972210 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -1.69279522 </td>
+   <td style="text-align:right;"> 0.02110140 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -80.221951 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -2.66934144 </td>
+   <td style="text-align:right;"> 0.02067125 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -129.133026 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -0.97654622 </td>
+   <td style="text-align:right;"> 0.01157127 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -84.394008 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 2.03072043 </td>
+   <td style="text-align:right;"> 0.01764154 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 115.110172 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.36435843 </td>
+   <td style="text-align:right;"> 0.01615515 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 22.553704 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -0.36550856 </td>
+   <td style="text-align:right;"> 0.01600325 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -22.839644 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -1.66636201 </td>
+   <td style="text-align:right;"> 0.00751197 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -221.827434 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -2.39622900 </td>
+   <td style="text-align:right;"> 0.00715137 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -335.072498 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -0.72986699 </td>
+   <td style="text-align:right;"> 0.00721726 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -101.127985 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 2.34503617 </td>
+   <td style="text-align:right;"> 0.01391930 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 168.473663 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.50479960 </td>
+   <td style="text-align:right;"> 0.01221276 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 41.333801 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -0.19876180 </td>
+   <td style="text-align:right;"> 0.01188838 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -16.718996 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -1.84023657 </td>
+   <td style="text-align:right;"> 0.00703461 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -261.597489 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -2.54379797 </td>
+   <td style="text-align:right;"> 0.00649256 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -391.802067 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -0.70356140 </td>
+   <td style="text-align:right;"> 0.00589281 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -119.393240 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 2.07109373 </td>
+   <td style="text-align:right;"> 0.01784192 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 116.080188 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.47192365 </td>
+   <td style="text-align:right;"> 0.01612219 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 29.271675 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -0.09585554 </td>
+   <td style="text-align:right;"> 0.01585815 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -6.044561 </td>
+   <td style="text-align:right;"> 1e-08 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -1.59917008 </td>
+   <td style="text-align:right;"> 0.00792423 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -201.807550 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -2.16694927 </td>
+   <td style="text-align:right;"> 0.00736879 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -294.071367 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -0.56777919 </td>
+   <td style="text-align:right;"> 0.00693636 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -81.855448 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 2.02138363 </td>
+   <td style="text-align:right;"> 0.00711864 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 283.956532 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.76479577 </td>
+   <td style="text-align:right;"> 0.00792935 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 96.451300 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.65732490 </td>
+   <td style="text-align:right;"> 0.00835328 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 78.690595 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -1.25658787 </td>
+   <td style="text-align:right;"> 0.00403774 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -311.210653 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -1.36405873 </td>
+   <td style="text-align:right;"> 0.00481815 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -283.108293 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -0.10747086 </td>
+   <td style="text-align:right;"> 0.00612828 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -17.536878 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 1.68304653 </td>
+   <td style="text-align:right;"> 0.00787035 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 213.846448 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.11992896 </td>
+   <td style="text-align:right;"> 0.00639245 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 18.761029 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -0.74563014 </td>
+   <td style="text-align:right;"> 0.00651911 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -114.376002 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -1.56311756 </td>
+   <td style="text-align:right;"> 0.00422841 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -369.669920 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -2.42867666 </td>
+   <td style="text-align:right;"> 0.00442640 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -548.679288 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -0.86555910 </td>
+   <td style="text-align:right;"> 0.00400225 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -216.268208 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 1.48166573 </td>
+   <td style="text-align:right;"> 0.00829276 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 178.669809 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.38338995 </td>
+   <td style="text-align:right;"> 0.00738383 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 51.922932 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -0.22298891 </td>
+   <td style="text-align:right;"> 0.00738786 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -30.183170 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -1.09827578 </td>
+   <td style="text-align:right;"> 0.00358860 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -306.046126 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -1.70465464 </td>
+   <td style="text-align:right;"> 0.00357956 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -476.218500 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -0.60637886 </td>
+   <td style="text-align:right;"> 0.00339241 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -178.745914 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Grammar Type By Architecture (Inverse Brier Score) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> recurrence </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 1.07065318 </td>
+   <td style="text-align:right;"> 0.03181118 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 33.656508 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.84727023 </td>
+   <td style="text-align:right;"> 0.03017627 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 28.077372 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.78410565 </td>
+   <td style="text-align:right;"> 0.03181064 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 24.649166 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.87956552 </td>
+   <td style="text-align:right;"> 0.02867298 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 30.675767 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.91316843 </td>
+   <td style="text-align:right;"> 0.02845467 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 32.092044 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.82907395 </td>
+   <td style="text-align:right;"> 0.02866477 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 28.923103 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.22338295 </td>
+   <td style="text-align:right;"> 0.01932063 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -11.561887 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.28654753 </td>
+   <td style="text-align:right;"> 0.02178523 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.153294 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.19108766 </td>
+   <td style="text-align:right;"> 0.01687709 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -11.322314 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.15748475 </td>
+   <td style="text-align:right;"> 0.01650375 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -9.542361 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.24157923 </td>
+   <td style="text-align:right;"> 0.01686266 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -14.326285 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.06316458 </td>
+   <td style="text-align:right;"> 0.01931986 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -3.269412 </td>
+   <td style="text-align:right;"> 0.01858578 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.03229530 </td>
+   <td style="text-align:right;"> 0.01354621 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 2.384084 </td>
+   <td style="text-align:right;"> 0.20518757 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.06589820 </td>
+   <td style="text-align:right;"> 0.01307802 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 5.038850 </td>
+   <td style="text-align:right;"> 0.00000971 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.01819628 </td>
+   <td style="text-align:right;"> 0.01352807 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -1.345075 </td>
+   <td style="text-align:right;"> 0.83058583 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.09545988 </td>
+   <td style="text-align:right;"> 0.01687638 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 5.656419 </td>
+   <td style="text-align:right;"> 0.00000032 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.12906278 </td>
+   <td style="text-align:right;"> 0.01650292 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 7.820604 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.04496830 </td>
+   <td style="text-align:right;"> 0.01686168 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 2.666894 </td>
+   <td style="text-align:right;"> 0.10673978 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.03360291 </td>
+   <td style="text-align:right;"> 0.00908609 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 3.698281 </td>
+   <td style="text-align:right;"> 0.00408088 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.05049157 </td>
+   <td style="text-align:right;"> 0.00972466 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -5.192119 </td>
+   <td style="text-align:right;"> 0.00000432 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.08409448 </td>
+   <td style="text-align:right;"> 0.00906098 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -9.280944 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.83021166 </td>
+   <td style="text-align:right;"> 0.01903907 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 43.605686 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.92114444 </td>
+   <td style="text-align:right;"> 0.01895025 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 48.608567 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.58403742 </td>
+   <td style="text-align:right;"> 0.01919369 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 30.428623 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.62978720 </td>
+   <td style="text-align:right;"> 0.01844841 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 34.137741 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.32505300 </td>
+   <td style="text-align:right;"> 0.01867558 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 17.405245 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.03957772 </td>
+   <td style="text-align:right;"> 0.01864635 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 2.122546 </td>
+   <td style="text-align:right;"> 0.33916173 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.09093279 </td>
+   <td style="text-align:right;"> 0.00653934 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 13.905504 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.24617424 </td>
+   <td style="text-align:right;"> 0.00721464 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -34.121476 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.20042446 </td>
+   <td style="text-align:right;"> 0.00489754 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -40.923477 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.50515866 </td>
+   <td style="text-align:right;"> 0.00569443 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -88.711085 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.79063393 </td>
+   <td style="text-align:right;"> 0.00559858 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -141.220502 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.33710702 </td>
+   <td style="text-align:right;"> 0.00697710 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -48.316184 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.29135725 </td>
+   <td style="text-align:right;"> 0.00454074 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -64.165148 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.59609145 </td>
+   <td style="text-align:right;"> 0.00539043 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -110.583272 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.88156672 </td>
+   <td style="text-align:right;"> 0.00528884 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -166.684260 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.04574978 </td>
+   <td style="text-align:right;"> 0.00546872 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 8.365721 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.25898442 </td>
+   <td style="text-align:right;"> 0.00619228 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -41.823726 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.54445970 </td>
+   <td style="text-align:right;"> 0.00610396 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -89.197717 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.30473420 </td>
+   <td style="text-align:right;"> 0.00320648 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -95.036868 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.59020947 </td>
+   <td style="text-align:right;"> 0.00303326 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -194.579269 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.28547527 </td>
+   <td style="text-align:right;"> 0.00419957 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -67.977221 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.85664487 </td>
+   <td style="text-align:right;"> 0.01018413 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 84.115699 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.77370309 </td>
+   <td style="text-align:right;"> 0.00984785 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 78.565657 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.67766256 </td>
+   <td style="text-align:right;"> 0.01017276 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 66.615386 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 1.06599455 </td>
+   <td style="text-align:right;"> 0.00949771 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 112.237062 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.45473065 </td>
+   <td style="text-align:right;"> 0.00906140 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 50.183240 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.63409716 </td>
+   <td style="text-align:right;"> 0.00898404 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 70.580428 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.08294178 </td>
+   <td style="text-align:right;"> 0.00713653 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -11.622139 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.17898231 </td>
+   <td style="text-align:right;"> 0.00757858 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -23.616869 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.20934968 </td>
+   <td style="text-align:right;"> 0.00664530 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 31.503422 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.40191422 </td>
+   <td style="text-align:right;"> 0.00600516 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -66.928187 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.22254771 </td>
+   <td style="text-align:right;"> 0.00588746 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -37.800269 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.09604053 </td>
+   <td style="text-align:right;"> 0.00712026 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.488341 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.29229146 </td>
+   <td style="text-align:right;"> 0.00611752 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 47.779414 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.31897244 </td>
+   <td style="text-align:right;"> 0.00541532 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -58.901870 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.13960593 </td>
+   <td style="text-align:right;"> 0.00528445 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -26.418234 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.38833199 </td>
+   <td style="text-align:right;"> 0.00662790 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 58.590463 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.22293191 </td>
+   <td style="text-align:right;"> 0.00598587 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -37.242998 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.04356540 </td>
+   <td style="text-align:right;"> 0.00586772 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -7.424587 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.61126390 </td>
+   <td style="text-align:right;"> 0.00474868 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -128.722807 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.43189739 </td>
+   <td style="text-align:right;"> 0.00459970 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -93.896832 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.17936651 </td>
+   <td style="text-align:right;"> 0.00361367 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 49.635519 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.10332410 </td>
+   <td style="text-align:right;"> 0.00940242 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 117.344637 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.04668791 </td>
+   <td style="text-align:right;"> 0.00890034 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 117.600847 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.08642959 </td>
+   <td style="text-align:right;"> 0.00920908 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 117.973736 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.93506991 </td>
+   <td style="text-align:right;"> 0.00932233 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 207.573571 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.56571777 </td>
+   <td style="text-align:right;"> 0.00857775 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 65.951805 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.00426452 </td>
+   <td style="text-align:right;"> 0.00839617 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 119.609848 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.05663619 </td>
+   <td style="text-align:right;"> 0.00618666 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -9.154573 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.01689451 </td>
+   <td style="text-align:right;"> 0.00662311 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -2.550843 </td>
+   <td style="text-align:right;"> 0.14146744 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.83174581 </td>
+   <td style="text-align:right;"> 0.00677992 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 122.677863 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.53760633 </td>
+   <td style="text-align:right;"> 0.00571303 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -94.101806 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.09905958 </td>
+   <td style="text-align:right;"> 0.00543634 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -18.221747 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.03974168 </td>
+   <td style="text-align:right;"> 0.00588864 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 6.748878 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.88838200 </td>
+   <td style="text-align:right;"> 0.00606447 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 146.489653 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.48097014 </td>
+   <td style="text-align:right;"> 0.00484244 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -99.323996 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.04242339 </td>
+   <td style="text-align:right;"> 0.00451268 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -9.400934 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.84864032 </td>
+   <td style="text-align:right;"> 0.00650917 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 130.376180 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.52071182 </td>
+   <td style="text-align:right;"> 0.00538893 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -96.626248 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.08216507 </td>
+   <td style="text-align:right;"> 0.00509460 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -16.127863 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -1.36935214 </td>
+   <td style="text-align:right;"> 0.00557988 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -245.408669 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.93080539 </td>
+   <td style="text-align:right;"> 0.00529699 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -175.723451 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.43854675 </td>
+   <td style="text-align:right;"> 0.00383788 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 114.267988 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+</tbody>
+</table>
+
+### Laminations-Grammar Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Laminations × Grammar EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Lamination </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9325344 </td>
+   <td style="text-align:right;"> 0.9312714 </td>
+   <td style="text-align:right;"> 0.9337750 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9274815 </td>
+   <td style="text-align:right;"> 0.9260947 </td>
+   <td style="text-align:right;"> 0.9288432 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8316073 </td>
+   <td style="text-align:right;"> 0.8303107 </td>
+   <td style="text-align:right;"> 0.8328951 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8215592 </td>
+   <td style="text-align:right;"> 0.8201678 </td>
+   <td style="text-align:right;"> 0.8229411 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8416700 </td>
+   <td style="text-align:right;"> 0.8406583 </td>
+   <td style="text-align:right;"> 0.8426760 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8323294 </td>
+   <td style="text-align:right;"> 0.8312244 </td>
+   <td style="text-align:right;"> 0.8334280 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8570020 </td>
+   <td style="text-align:right;"> 0.8558178 </td>
+   <td style="text-align:right;"> 0.8581772 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8494586 </td>
+   <td style="text-align:right;"> 0.8481732 </td>
+   <td style="text-align:right;"> 0.8507341 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8055549 </td>
+   <td style="text-align:right;"> 0.8046995 </td>
+   <td style="text-align:right;"> 0.8064069 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.7929935 </td>
+   <td style="text-align:right;"> 0.7920759 </td>
+   <td style="text-align:right;"> 0.7939076 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8852824 </td>
+   <td style="text-align:right;"> 0.8848429 </td>
+   <td style="text-align:right;"> 0.8857203 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8750228 </td>
+   <td style="text-align:right;"> 0.8745298 </td>
+   <td style="text-align:right;"> 0.8755140 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8778109 </td>
+   <td style="text-align:right;"> 0.8773184 </td>
+   <td style="text-align:right;"> 0.8783015 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8682064 </td>
+   <td style="text-align:right;"> 0.8676411 </td>
+   <td style="text-align:right;"> 0.8687694 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Laminations By Grammar Type (Inverse Brier Score) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> grammartype </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.07490827 </td>
+   <td style="text-align:right;"> 0.01073999 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 6.974705 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.06384326 </td>
+   <td style="text-align:right;"> 0.00303678 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 21.023316 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.06273429 </td>
+   <td style="text-align:right;"> 0.00352276 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 17.808300 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.05571101 </td>
+   <td style="text-align:right;"> 0.00440461 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 12.648327 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.07016526 </td>
+   <td style="text-align:right;"> 0.00210326 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 33.360243 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.09136232 </td>
+   <td style="text-align:right;"> 0.00262829 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 34.761060 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.08104350 </td>
+   <td style="text-align:right;"> 0.00268447 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 30.189736 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Grammar Types By Lamination (Inverse Brier Score) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> laminations </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.97074095 </td>
+   <td style="text-align:right;"> 0.01068751 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 90.82947 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.90328841 </td>
+   <td style="text-align:right;"> 0.01040324 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 86.82762 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.79265743 </td>
+   <td style="text-align:right;"> 0.01078431 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 73.50100 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 1.12997580 </td>
+   <td style="text-align:right;"> 0.01010123 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 111.86514 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.55644044 </td>
+   <td style="text-align:right;"> 0.01000037 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 55.64201 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.62368572 </td>
+   <td style="text-align:right;"> 0.01001869 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 62.25225 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.06745255 </td>
+   <td style="text-align:right;"> 0.00546851 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -12.33473 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.17808352 </td>
+   <td style="text-align:right;"> 0.00617365 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -28.84573 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.15923485 </td>
+   <td style="text-align:right;"> 0.00479847 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 33.18453 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.41430052 </td>
+   <td style="text-align:right;"> 0.00466040 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -88.89798 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.34705523 </td>
+   <td style="text-align:right;"> 0.00473150 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -73.34993 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.11063097 </td>
+   <td style="text-align:right;"> 0.00569036 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -19.44181 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.22668739 </td>
+   <td style="text-align:right;"> 0.00418446 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 54.17362 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.34684797 </td>
+   <td style="text-align:right;"> 0.00400206 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -86.66744 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.27960269 </td>
+   <td style="text-align:right;"> 0.00407493 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -68.61527 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.33731837 </td>
+   <td style="text-align:right;"> 0.00507372 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 66.48339 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.23621700 </td>
+   <td style="text-align:right;"> 0.00491823 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -48.02888 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.16897171 </td>
+   <td style="text-align:right;"> 0.00497508 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -33.96363 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.57353536 </td>
+   <td style="text-align:right;"> 0.00305513 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -187.72874 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.50629008 </td>
+   <td style="text-align:right;"> 0.00317075 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -159.67516 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.06724529 </td>
+   <td style="text-align:right;"> 0.00289724 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 23.21011 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.95967595 </td>
+   <td style="text-align:right;"> 0.01091851 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 87.89438 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.89111443 </td>
+   <td style="text-align:right;"> 0.01064951 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 83.67659 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.77346018 </td>
+   <td style="text-align:right;"> 0.01104561 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 70.02418 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 1.12523279 </td>
+   <td style="text-align:right;"> 0.01032422 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 108.98960 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.57289449 </td>
+   <td style="text-align:right;"> 0.01022878 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 56.00808 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.62982096 </td>
+   <td style="text-align:right;"> 0.01025871 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 61.39377 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.06856152 </td>
+   <td style="text-align:right;"> 0.00556430 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -12.32167 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.18621577 </td>
+   <td style="text-align:right;"> 0.00630270 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -29.54540 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.16555684 </td>
+   <td style="text-align:right;"> 0.00483615 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 34.23322 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.38678146 </td>
+   <td style="text-align:right;"> 0.00472139 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -81.92117 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.32985499 </td>
+   <td style="text-align:right;"> 0.00481880 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -68.45162 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.11765425 </td>
+   <td style="text-align:right;"> 0.00585300 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -20.10152 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.23411836 </td>
+   <td style="text-align:right;"> 0.00426210 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 54.93034 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.31821994 </td>
+   <td style="text-align:right;"> 0.00410444 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -77.53061 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.26129347 </td>
+   <td style="text-align:right;"> 0.00420628 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -62.11986 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.35177262 </td>
+   <td style="text-align:right;"> 0.00519117 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 67.76363 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.20056569 </td>
+   <td style="text-align:right;"> 0.00505565 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -39.67160 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.14363922 </td>
+   <td style="text-align:right;"> 0.00513572 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -27.96868 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.55233830 </td>
+   <td style="text-align:right;"> 0.00308246 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -179.18746 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.49541184 </td>
+   <td style="text-align:right;"> 0.00323625 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -153.08216 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.05692647 </td>
+   <td style="text-align:right;"> 0.00299338 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 19.01744 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+### Recurrence-Laminations Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Laminations × Recurrence EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Lamination </th>
+   <th style="text-align:left;"> Architecture </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.9207950 </td>
+   <td style="text-align:right;"> 0.9198651 </td>
+   <td style="text-align:right;"> 0.9217146 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.9179372 </td>
+   <td style="text-align:right;"> 0.9169128 </td>
+   <td style="text-align:right;"> 0.9189495 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.5420159 </td>
+   <td style="text-align:right;"> 0.5400032 </td>
+   <td style="text-align:right;"> 0.5440239 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.5418024 </td>
+   <td style="text-align:right;"> 0.5397441 </td>
+   <td style="text-align:right;"> 0.5438558 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.8846177 </td>
+   <td style="text-align:right;"> 0.8840842 </td>
+   <td style="text-align:right;"> 0.8851489 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.8665096 </td>
+   <td style="text-align:right;"> 0.8659082 </td>
+   <td style="text-align:right;"> 0.8671085 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.9361211 </td>
+   <td style="text-align:right;"> 0.9358315 </td>
+   <td style="text-align:right;"> 0.9364096 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.9301806 </td>
+   <td style="text-align:right;"> 0.9298686 </td>
+   <td style="text-align:right;"> 0.9304913 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Laminations By Architecture (Inverse Brier Score) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> recurrence </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.03697819 </td>
+   <td style="text-align:right;"> 0.00634411 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 5.8287480 </td>
+   <td style="text-align:right;"> 0.00000001 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.00064323 </td>
+   <td style="text-align:right;"> 0.00199059 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 0.3231375 </td>
+   <td style="text-align:right;"> 0.74659113 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.15589075 </td>
+   <td style="text-align:right;"> 0.00312857 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 49.8281832 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.09206949 </td>
+   <td style="text-align:right;"> 0.00307599 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 29.9317048 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Architecture By Laminations (Inverse Brier Score)  (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> laminations </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 2.0044687 </td>
+   <td style="text-align:right;"> 0.00734020 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 273.08082 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.3959099 </td>
+   <td style="text-align:right;"> 0.00653382 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 60.59392 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.2232027 </td>
+   <td style="text-align:right;"> 0.00651183 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -34.27648 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -1.6085588 </td>
+   <td style="text-align:right;"> 0.00398645 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -403.50705 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -2.2276714 </td>
+   <td style="text-align:right;"> 0.00390703 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -570.17060 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.6191126 </td>
+   <td style="text-align:right;"> 0.00329154 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -188.09209 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 1.9681337 </td>
+   <td style="text-align:right;"> 0.00767557 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 256.41541 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.5148224 </td>
+   <td style="text-align:right;"> 0.00688868 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 74.73452 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.1681114 </td>
+   <td style="text-align:right;"> 0.00687214 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -24.46275 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -1.4533113 </td>
+   <td style="text-align:right;"> 0.00400110 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -363.22765 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -2.1362451 </td>
+   <td style="text-align:right;"> 0.00392739 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -543.93478 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.6829339 </td>
+   <td style="text-align:right;"> 0.00325901 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -209.55265 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+### Input Size 
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Input Size × Grammar EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Input Size </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9300518 </td>
+   <td style="text-align:right;"> 0.9289403 </td>
+   <td style="text-align:right;"> 0.9311466 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8266482 </td>
+   <td style="text-align:right;"> 0.8253899 </td>
+   <td style="text-align:right;"> 0.8278984 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8370599 </td>
+   <td style="text-align:right;"> 0.8361366 </td>
+   <td style="text-align:right;"> 0.8379786 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8532745 </td>
+   <td style="text-align:right;"> 0.8521891 </td>
+   <td style="text-align:right;"> 0.8543526 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.7993597 </td>
+   <td style="text-align:right;"> 0.7985545 </td>
+   <td style="text-align:right;"> 0.8001620 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8802548 </td>
+   <td style="text-align:right;"> 0.8798903 </td>
+   <td style="text-align:right;"> 0.8806182 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8730927 </td>
+   <td style="text-align:right;"> 0.8726668 </td>
+   <td style="text-align:right;"> 0.8735173 </td>
+  </tr>
+</tbody>
+</table>
+
+### Slope of layers
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Layers EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Layers </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 3.465753 </td>
+   <td style="text-align:right;"> 0.862967 </td>
+   <td style="text-align:right;"> 0.8625691 </td>
+   <td style="text-align:right;"> 0.8633638 </td>
+  </tr>
+</tbody>
+</table>
+
+### Slope of neurons
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Neurons EMMs (Inverse Brier Score)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Neurons </th>
+   <th style="text-align:right;"> Inverse Brier Score </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 272 </td>
+   <td style="text-align:right;"> 0.862967 </td>
+   <td style="text-align:right;"> 0.8625691 </td>
+   <td style="text-align:right;"> 0.8633638 </td>
+  </tr>
+</tbody>
+</table>
+
+## Proportion Correct Model
+
+```
+Call:
+betareg::betareg(formula = formulas_proportion_phi$M1g, data = df_with_sequential_ffns, 
+    link = "loglog")
+
+Quantile residuals:
+     Min       1Q   Median       3Q      Max 
+-11.6061  -0.6949   0.0079   0.6307   7.7749 
+
+Coefficients (mean model with loglog link):
+                                                  Estimate Std. Error z value
+(Intercept)                                      4.201e+00  3.840e-02 109.382
+recurrenceFFN (Sequential)                      -2.050e+00  4.061e-02 -50.472
+recurrenceRNN                                   -4.494e-01  3.180e-02 -14.132
+recurrenceGRU                                    5.889e-01  3.235e-02  18.204
+laminationsLaminated                            -5.653e-02  1.459e-02  -3.874
+inputsize                                       -1.410e-01  2.054e-03 -68.632
+grammartypeLT                                   -1.216e+00  4.310e-02 -28.205
+grammartypeLTT                                  -9.034e-01  4.151e-02 -21.763
+grammartypeLTTO                                 -1.191e+00  4.297e-02 -27.727
+grammartypeMSO                                  -2.688e+00  4.057e-02 -66.243
+grammartypeCS                                   -1.528e+00  3.945e-02 -38.722
+grammartypeCF                                   -1.880e+00  3.965e-02 -47.409
+neurons                                          5.349e-04  4.327e-06 123.620
+layers                                          -4.751e-02  5.184e-04 -91.653
+recurrenceFFN (Sequential):grammartypeLT        -2.364e-01  4.470e-02  -5.288
+recurrenceRNN:grammartypeLT                      2.329e-02  3.579e-02   0.651
+recurrenceGRU:grammartypeLT                     -2.336e-01  3.623e-02  -6.447
+recurrenceFFN (Sequential):grammartypeLTT       -3.806e-01  4.329e-02  -8.793
+recurrenceRNN:grammartypeLTT                    -4.681e-02  3.404e-02  -1.375
+recurrenceGRU:grammartypeLTT                    -3.587e-01  3.448e-02 -10.401
+recurrenceFFN (Sequential):grammartypeLTTO      -6.523e-02  4.469e-02  -1.460
+recurrenceRNN:grammartypeLTTO                   -2.793e-03  3.577e-02  -0.078
+recurrenceGRU:grammartypeLTTO                   -4.706e-01  3.615e-02 -13.020
+recurrenceFFN (Sequential):grammartypeMSO        7.220e-01  4.240e-02  17.031
+recurrenceRNN:grammartypeMSO                     1.911e-01  3.343e-02   5.716
+recurrenceGRU:grammartypeMSO                    -6.480e-01  3.410e-02 -19.001
+recurrenceFFN (Sequential):grammartypeCS         3.275e-01  4.147e-02   7.896
+recurrenceRNN:grammartypeCS                      3.265e-01  3.235e-02  10.095
+recurrenceGRU:grammartypeCS                      2.754e-01  3.304e-02   8.338
+recurrenceFFN (Sequential):grammartypeCF         5.135e-01  4.174e-02  12.304
+recurrenceRNN:grammartypeCF                      4.850e-02  3.293e-02   1.473
+recurrenceGRU:grammartypeCF                     -2.826e-01  3.348e-02  -8.442
+grammartypeLT:laminationsLaminated               2.297e-02  1.364e-02   1.684
+grammartypeLTT:laminationsLaminated              1.630e-02  1.356e-02   1.202
+grammartypeLTTO:laminationsLaminated             2.444e-02  1.387e-02   1.762
+grammartypeMSO:laminationsLaminated              4.228e-03  1.318e-02   0.321
+grammartypeCS:laminationsLaminated              -2.518e-02  1.320e-02  -1.909
+grammartypeCF:laminationsLaminated              -9.718e-03  1.311e-02  -0.741
+recurrenceFFN (Sequential):laminationsLaminated  8.025e-02  7.300e-03  10.994
+recurrenceRNN:laminationsLaminated              -1.005e-01  7.646e-03 -13.151
+recurrenceGRU:laminationsLaminated              -1.070e-02  7.847e-03  -1.363
+grammartypeLT:inputsize                          4.976e-02  2.323e-03  21.421
+grammartypeLTT:inputsize                         2.758e-02  2.268e-03  12.160
+grammartypeLTTO:inputsize                        7.699e-02  2.300e-03  33.469
+grammartypeMSO:inputsize                         2.275e-01  2.229e-03 102.064
+grammartypeCS:inputsize                          1.205e-01  2.161e-03  55.763
+grammartypeCF:inputsize                          1.889e-01  2.122e-03  89.038
+                                                Pr(>|z|)    
+(Intercept)                                      < 2e-16 ***
+recurrenceFFN (Sequential)                       < 2e-16 ***
+recurrenceRNN                                    < 2e-16 ***
+recurrenceGRU                                    < 2e-16 ***
+laminationsLaminated                            0.000107 ***
+inputsize                                        < 2e-16 ***
+grammartypeLT                                    < 2e-16 ***
+grammartypeLTT                                   < 2e-16 ***
+grammartypeLTTO                                  < 2e-16 ***
+grammartypeMSO                                   < 2e-16 ***
+grammartypeCS                                    < 2e-16 ***
+grammartypeCF                                    < 2e-16 ***
+neurons                                          < 2e-16 ***
+layers                                           < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLT        1.24e-07 ***
+recurrenceRNN:grammartypeLT                     0.515201    
+recurrenceGRU:grammartypeLT                     1.14e-10 ***
+recurrenceFFN (Sequential):grammartypeLTT        < 2e-16 ***
+recurrenceRNN:grammartypeLTT                    0.169019    
+recurrenceGRU:grammartypeLTT                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLTTO      0.144370    
+recurrenceRNN:grammartypeLTTO                   0.937769    
+recurrenceGRU:grammartypeLTTO                    < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeMSO        < 2e-16 ***
+recurrenceRNN:grammartypeMSO                    1.09e-08 ***
+recurrenceGRU:grammartypeMSO                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCS        2.87e-15 ***
+recurrenceRNN:grammartypeCS                      < 2e-16 ***
+recurrenceGRU:grammartypeCS                      < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCF         < 2e-16 ***
+recurrenceRNN:grammartypeCF                     0.140829    
+recurrenceGRU:grammartypeCF                      < 2e-16 ***
+grammartypeLT:laminationsLaminated              0.092243 .  
+grammartypeLTT:laminationsLaminated             0.229255    
+grammartypeLTTO:laminationsLaminated            0.077997 .  
+grammartypeMSO:laminationsLaminated             0.748449    
+grammartypeCS:laminationsLaminated              0.056323 .  
+grammartypeCF:laminationsLaminated              0.458678    
+recurrenceFFN (Sequential):laminationsLaminated  < 2e-16 ***
+recurrenceRNN:laminationsLaminated               < 2e-16 ***
+recurrenceGRU:laminationsLaminated              0.172817    
+grammartypeLT:inputsize                          < 2e-16 ***
+grammartypeLTT:inputsize                         < 2e-16 ***
+grammartypeLTTO:inputsize                        < 2e-16 ***
+grammartypeMSO:inputsize                         < 2e-16 ***
+grammartypeCS:inputsize                          < 2e-16 ***
+grammartypeCF:inputsize                          < 2e-16 ***
+
+Phi coefficients (precision model with log link):
+                                                  Estimate Std. Error z value
+(Intercept)                                      2.018e+00  4.126e-02  48.918
+recurrenceFFN (Sequential)                      -1.904e+00  4.314e-02 -44.145
+recurrenceRNN                                   -4.132e-01  3.415e-02 -12.099
+recurrenceGRU                                    7.032e-01  3.487e-02  20.169
+laminationsLaminated                            -5.487e-03  1.900e-02  -0.289
+inputsize                                       -1.016e-01  2.186e-03 -46.500
+grammartypeLT                                    8.284e-01  5.291e-02  15.656
+grammartypeLTT                                   3.835e-01  5.275e-02   7.271
+grammartypeLTTO                                  7.395e-01  5.321e-02  13.899
+grammartypeMSO                                   8.533e-01  4.717e-02  18.088
+grammartypeCS                                    1.058e+00  4.391e-02  24.104
+grammartypeCF                                    1.205e+00  4.397e-02  27.398
+neurons                                          4.437e-04  8.671e-06  51.169
+layers                                          -3.062e-02  1.108e-03 -27.641
+recurrenceFFN (Sequential):grammartypeLT         3.073e+00  5.637e-02  54.514
+recurrenceRNN:grammartypeLT                     -2.240e-01  4.448e-02  -5.035
+recurrenceGRU:grammartypeLT                     -3.642e-01  4.512e-02  -8.072
+recurrenceFFN (Sequential):grammartypeLTT        3.247e+00  5.621e-02  57.758
+recurrenceRNN:grammartypeLTT                     7.301e-04  4.432e-02   0.016
+recurrenceGRU:grammartypeLTT                    -1.607e-01  4.490e-02  -3.580
+recurrenceFFN (Sequential):grammartypeLTTO       2.560e+00  5.659e-02  45.235
+recurrenceRNN:grammartypeLTTO                   -1.638e-01  4.485e-02  -3.653
+recurrenceGRU:grammartypeLTTO                   -3.327e-01  4.542e-02  -7.325
+recurrenceFFN (Sequential):grammartypeMSO        3.665e+00  4.998e-02  73.340
+recurrenceRNN:grammartypeMSO                    -1.089e+00  3.959e-02 -27.512
+recurrenceGRU:grammartypeMSO                    -2.573e+00  4.028e-02 -63.871
+recurrenceFFN (Sequential):grammartypeCS         2.184e+00  4.613e-02  47.343
+recurrenceRNN:grammartypeCS                     -6.627e-01  3.635e-02 -18.230
+recurrenceGRU:grammartypeCS                     -1.626e+00  3.714e-02 -43.772
+recurrenceFFN (Sequential):grammartypeCF         2.076e+00  4.623e-02  44.899
+recurrenceRNN:grammartypeCF                     -3.616e-01  3.663e-02  -9.872
+recurrenceGRU:grammartypeCF                     -9.645e-01  3.731e-02 -25.851
+grammartypeLT:laminationsLaminated              -2.855e-03  1.699e-02  -0.168
+grammartypeLTT:laminationsLaminated              1.319e-02  1.707e-02   0.773
+grammartypeLTTO:laminationsLaminated            -7.121e-03  1.720e-02  -0.414
+grammartypeMSO:laminationsLaminated              7.442e-02  1.522e-02   4.890
+grammartypeCS:laminationsLaminated               8.941e-02  1.452e-02   6.158
+grammartypeCF:laminationsLaminated              -8.377e-03  1.450e-02  -0.578
+recurrenceFFN (Sequential):laminationsLaminated  1.511e-02  1.635e-02   0.925
+recurrenceRNN:laminationsLaminated              -1.088e-01  1.426e-02  -7.627
+recurrenceGRU:laminationsLaminated              -7.723e-02  1.438e-02  -5.371
+grammartypeLT:inputsize                          5.330e-02  2.779e-03  19.182
+grammartypeLTT:inputsize                         1.456e-01  2.769e-03  52.592
+grammartypeLTTO:inputsize                        8.985e-02  2.780e-03  32.316
+grammartypeMSO:inputsize                         1.376e-01  2.488e-03  55.317
+grammartypeCS:inputsize                          1.227e-01  2.361e-03  51.966
+grammartypeCF:inputsize                          7.716e-02  2.338e-03  33.007
+                                                Pr(>|z|)    
+(Intercept)                                      < 2e-16 ***
+recurrenceFFN (Sequential)                       < 2e-16 ***
+recurrenceRNN                                    < 2e-16 ***
+recurrenceGRU                                    < 2e-16 ***
+laminationsLaminated                            0.772742    
+inputsize                                        < 2e-16 ***
+grammartypeLT                                    < 2e-16 ***
+grammartypeLTT                                  3.56e-13 ***
+grammartypeLTTO                                  < 2e-16 ***
+grammartypeMSO                                   < 2e-16 ***
+grammartypeCS                                    < 2e-16 ***
+grammartypeCF                                    < 2e-16 ***
+neurons                                          < 2e-16 ***
+layers                                           < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeLT         < 2e-16 ***
+recurrenceRNN:grammartypeLT                     4.79e-07 ***
+recurrenceGRU:grammartypeLT                     6.93e-16 ***
+recurrenceFFN (Sequential):grammartypeLTT        < 2e-16 ***
+recurrenceRNN:grammartypeLTT                    0.986857    
+recurrenceGRU:grammartypeLTT                    0.000344 ***
+recurrenceFFN (Sequential):grammartypeLTTO       < 2e-16 ***
+recurrenceRNN:grammartypeLTTO                   0.000259 ***
+recurrenceGRU:grammartypeLTTO                   2.38e-13 ***
+recurrenceFFN (Sequential):grammartypeMSO        < 2e-16 ***
+recurrenceRNN:grammartypeMSO                     < 2e-16 ***
+recurrenceGRU:grammartypeMSO                     < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCS         < 2e-16 ***
+recurrenceRNN:grammartypeCS                      < 2e-16 ***
+recurrenceGRU:grammartypeCS                      < 2e-16 ***
+recurrenceFFN (Sequential):grammartypeCF         < 2e-16 ***
+recurrenceRNN:grammartypeCF                      < 2e-16 ***
+recurrenceGRU:grammartypeCF                      < 2e-16 ***
+grammartypeLT:laminationsLaminated              0.866583    
+grammartypeLTT:laminationsLaminated             0.439797    
+grammartypeLTTO:laminationsLaminated            0.678803    
+grammartypeMSO:laminationsLaminated             1.01e-06 ***
+grammartypeCS:laminationsLaminated              7.38e-10 ***
+grammartypeCF:laminationsLaminated              0.563468    
+recurrenceFFN (Sequential):laminationsLaminated 0.355217    
+recurrenceRNN:laminationsLaminated              2.40e-14 ***
+recurrenceGRU:laminationsLaminated              7.82e-08 ***
+grammartypeLT:inputsize                          < 2e-16 ***
+grammartypeLTT:inputsize                         < 2e-16 ***
+grammartypeLTTO:inputsize                        < 2e-16 ***
+grammartypeMSO:inputsize                         < 2e-16 ***
+grammartypeCS:inputsize                          < 2e-16 ***
+grammartypeCF:inputsize                          < 2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1 
+
+Type of estimator: ML (maximum likelihood)
+Log-likelihood: 2.113e+06 on 94 Df
+Pseudo R-squared: 0.2182
+Number of iterations: 123 (BFGS) + 9 (Fisher scoring) 
+```
+
+
+### Recurrence-Grammar Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Recurrence × Grammar Type EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Architecture </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9624525 </td>
+   <td style="text-align:right;"> 0.9601536 </td>
+   <td style="text-align:right;"> 0.9646211 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.7516592 </td>
+   <td style="text-align:right;"> 0.7425768 </td>
+   <td style="text-align:right;"> 0.7604751 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9388735 </td>
+   <td style="text-align:right;"> 0.9377377 </td>
+   <td style="text-align:right;"> 0.9399891 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9788740 </td>
+   <td style="text-align:right;"> 0.9784307 </td>
+   <td style="text-align:right;"> 0.9793083 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.9110168 </td>
+   <td style="text-align:right;"> 0.9082878 </td>
+   <td style="text-align:right;"> 0.9136686 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.4145618 </td>
+   <td style="text-align:right;"> 0.4103242 </td>
+   <td style="text-align:right;"> 0.4187935 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8606576 </td>
+   <td style="text-align:right;"> 0.8592399 </td>
+   <td style="text-align:right;"> 0.8620621 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.9364326 </td>
+   <td style="text-align:right;"> 0.9357925 </td>
+   <td style="text-align:right;"> 0.9370666 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.9243077 </td>
+   <td style="text-align:right;"> 0.9225124 </td>
+   <td style="text-align:right;"> 0.9260631 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.4235563 </td>
+   <td style="text-align:right;"> 0.4195948 </td>
+   <td style="text-align:right;"> 0.4275118 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8728943 </td>
+   <td style="text-align:right;"> 0.8717394 </td>
+   <td style="text-align:right;"> 0.8740395 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.9390750 </td>
+   <td style="text-align:right;"> 0.9385413 </td>
+   <td style="text-align:right;"> 0.9396043 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.9263203 </td>
+   <td style="text-align:right;"> 0.9240447 </td>
+   <td style="text-align:right;"> 0.9285304 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.5436868 </td>
+   <td style="text-align:right;"> 0.5395433 </td>
+   <td style="text-align:right;"> 0.5478102 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8811812 </td>
+   <td style="text-align:right;"> 0.8799661 </td>
+   <td style="text-align:right;"> 0.8823849 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.9339196 </td>
+   <td style="text-align:right;"> 0.9333179 </td>
+   <td style="text-align:right;"> 0.9345161 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8750693 </td>
+   <td style="text-align:right;"> 0.8727638 </td>
+   <td style="text-align:right;"> 0.8773361 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.6165884 </td>
+   <td style="text-align:right;"> 0.6140399 </td>
+   <td style="text-align:right;"> 0.6191258 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8338629 </td>
+   <td style="text-align:right;"> 0.8326605 </td>
+   <td style="text-align:right;"> 0.8350575 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8673274 </td>
+   <td style="text-align:right;"> 0.8660774 </td>
+   <td style="text-align:right;"> 0.8685666 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9199589 </td>
+   <td style="text-align:right;"> 0.9189651 </td>
+   <td style="text-align:right;"> 0.9209411 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.6385705 </td>
+   <td style="text-align:right;"> 0.6364593 </td>
+   <td style="text-align:right;"> 0.6406732 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9055663 </td>
+   <td style="text-align:right;"> 0.9050643 </td>
+   <td style="text-align:right;"> 0.9060657 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9652778 </td>
+   <td style="text-align:right;"> 0.9649879 </td>
+   <td style="text-align:right;"> 0.9655654 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.9264219 </td>
+   <td style="text-align:right;"> 0.9251836 </td>
+   <td style="text-align:right;"> 0.9276406 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.7109732 </td>
+   <td style="text-align:right;"> 0.7094375 </td>
+   <td style="text-align:right;"> 0.7125026 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8869248 </td>
+   <td style="text-align:right;"> 0.8864085 </td>
+   <td style="text-align:right;"> 0.8874389 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.9450022 </td>
+   <td style="text-align:right;"> 0.9447110 </td>
+   <td style="text-align:right;"> 0.9452919 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Architectures By Grammar Type (Proportion Correct) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> grammartype </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 2.00946223 </td>
+   <td style="text-align:right;"> 0.04047077 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 49.652185 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.49963520 </td>
+   <td style="text-align:right;"> 0.03159657 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 15.812955 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -0.58352111 </td>
+   <td style="text-align:right;"> 0.03214076 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -18.155176 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -1.50982703 </td>
+   <td style="text-align:right;"> 0.02431484 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -62.094868 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -2.59298334 </td>
+   <td style="text-align:right;"> 0.02448265 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -105.911076 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> -1.08315631 </td>
+   <td style="text-align:right;"> 0.01418494 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -76.359610 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 2.24584518 </td>
+   <td style="text-align:right;"> 0.01899008 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 118.264119 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.47634315 </td>
+   <td style="text-align:right;"> 0.01682082 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 28.318669 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -0.34992305 </td>
+   <td style="text-align:right;"> 0.01673508 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -20.909558 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -1.76950203 </td>
+   <td style="text-align:right;"> 0.00861157 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -205.479668 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -2.59576823 </td>
+   <td style="text-align:right;"> 0.00840939 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -308.674986 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> -0.82626620 </td>
+   <td style="text-align:right;"> 0.00760389 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -108.663640 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 2.39007578 </td>
+   <td style="text-align:right;"> 0.01536426 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 155.560774 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.54644661 </td>
+   <td style="text-align:right;"> 0.01266002 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 43.163178 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -0.22486492 </td>
+   <td style="text-align:right;"> 0.01249613 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -17.994771 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -1.84362917 </td>
+   <td style="text-align:right;"> 0.00845195 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -218.130622 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -2.61494070 </td>
+   <td style="text-align:right;"> 0.00828840 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -315.494055 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> -0.77131153 </td>
+   <td style="text-align:right;"> 0.00625576 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -123.296152 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 2.07469470 </td>
+   <td style="text-align:right;"> 0.01895821 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 109.435136 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.50242827 </td>
+   <td style="text-align:right;"> 0.01678344 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 29.935950 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -0.11289131 </td>
+   <td style="text-align:right;"> 0.01654781 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -6.822129 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -1.57226643 </td>
+   <td style="text-align:right;"> 0.00889775 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -176.703783 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -2.18758602 </td>
+   <td style="text-align:right;"> 0.00845376 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -258.770689 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> -0.61531959 </td>
+   <td style="text-align:right;"> 0.00722895 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -85.118809 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 1.28741905 </td>
+   <td style="text-align:right;"> 0.01263781 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 101.870434 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.30853858 </td>
+   <td style="text-align:right;"> 0.01093456 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 28.216823 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.06446692 </td>
+   <td style="text-align:right;"> 0.01140615 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 5.651946 </td>
+   <td style="text-align:right;"> 1e-07 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -0.97888048 </td>
+   <td style="text-align:right;"> 0.00568083 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -172.312811 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -1.22295214 </td>
+   <td style="text-align:right;"> 0.00648994 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -188.438095 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> -0.24407166 </td>
+   <td style="text-align:right;"> 0.00650908 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -37.497128 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 1.68199713 </td>
+   <td style="text-align:right;"> 0.00905113 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 185.832787 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.17312273 </td>
+   <td style="text-align:right;"> 0.00692517 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 24.999048 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -0.85896783 </td>
+   <td style="text-align:right;"> 0.00764629 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -112.337785 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -1.50887439 </td>
+   <td style="text-align:right;"> 0.00499629 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -301.998712 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -2.54096496 </td>
+   <td style="text-align:right;"> 0.00596399 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -426.051375 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> -1.03209057 </td>
+   <td style="text-align:right;"> 0.00513298 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -201.070337 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 1.49591938 </td>
+   <td style="text-align:right;"> 0.01021369 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 146.462147 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.45113430 </td>
+   <td style="text-align:right;"> 0.00929674 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 48.526076 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -0.30087250 </td>
+   <td style="text-align:right;"> 0.00938579 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -32.056172 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -1.04478508 </td>
+   <td style="text-align:right;"> 0.00385300 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -271.161531 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -1.79679188 </td>
+   <td style="text-align:right;"> 0.00404290 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -444.431766 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> -0.75200681 </td>
+   <td style="text-align:right;"> 0.00368267 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -204.201763 </td>
+   <td style="text-align:right;"> 0e+00 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Grammar Type By Architecture (Proportion Correct) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> recurrence </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.89000003 </td>
+   <td style="text-align:right;"> 0.03489254 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 25.50688704 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.72109077 </td>
+   <td style="text-align:right;"> 0.03333423 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 21.63214337 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.69306796 </td>
+   <td style="text-align:right;"> 0.03487994 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 19.87010179 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 1.24906055 </td>
+   <td style="text-align:right;"> 0.03249614 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 38.43719673 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.77928068 </td>
+   <td style="text-align:right;"> 0.03161364 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 24.65014079 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.69163410 </td>
+   <td style="text-align:right;"> 0.03216428 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 21.50317585 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.16890926 </td>
+   <td style="text-align:right;"> 0.02039886 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -8.28032693 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.19693207 </td>
+   <td style="text-align:right;"> 0.02283743 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -8.62321336 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.35906052 </td>
+   <td style="text-align:right;"> 0.01899879 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 18.89912819 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.11071935 </td>
+   <td style="text-align:right;"> 0.01744678 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -6.34611990 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.19836593 </td>
+   <td style="text-align:right;"> 0.01842513 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -10.76605283 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.02802281 </td>
+   <td style="text-align:right;"> 0.02037733 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -1.37519526 </td>
+   <td style="text-align:right;"> 0.81524698 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.52796979 </td>
+   <td style="text-align:right;"> 0.01595712 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 33.08678813 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.05818991 </td>
+   <td style="text-align:right;"> 0.01407333 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 4.13476372 </td>
+   <td style="text-align:right;"> 0.00070386 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.02945667 </td>
+   <td style="text-align:right;"> 0.01526986 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -1.92907234 </td>
+   <td style="text-align:right;"> 0.46083657 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.55599260 </td>
+   <td style="text-align:right;"> 0.01897576 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 29.30014910 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.08621272 </td>
+   <td style="text-align:right;"> 0.01742170 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 4.94858303 </td>
+   <td style="text-align:right;"> 0.00001546 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.00143386 </td>
+   <td style="text-align:right;"> 0.01840130 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -0.07792157 </td>
+   <td style="text-align:right;"> 0.99999998 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.46977988 </td>
+   <td style="text-align:right;"> 0.01195158 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -39.30691565 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.55742645 </td>
+   <td style="text-align:right;"> 0.01334160 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -41.78108345 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> -0.08764658 </td>
+   <td style="text-align:right;"> 0.01101933 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -7.95389064 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 1.12638298 </td>
+   <td style="text-align:right;"> 0.02208455 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 51.00320997 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 1.10170432 </td>
+   <td style="text-align:right;"> 0.02198865 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 50.10332337 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.75830043 </td>
+   <td style="text-align:right;"> 0.02220816 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 34.14512723 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.52701738 </td>
+   <td style="text-align:right;"> 0.02171739 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 24.26707013 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.45181557 </td>
+   <td style="text-align:right;"> 0.02160531 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 20.91224744 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.17809125 </td>
+   <td style="text-align:right;"> 0.02151933 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 8.27587281 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.02467866 </td>
+   <td style="text-align:right;"> 0.00811235 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -3.04210979 </td>
+   <td style="text-align:right;"> 0.03795257 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.36808255 </td>
+   <td style="text-align:right;"> 0.00869000 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -42.35704338 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.59936560 </td>
+   <td style="text-align:right;"> 0.00734461 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -81.60616525 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.67456741 </td>
+   <td style="text-align:right;"> 0.00700666 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -96.27522392 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.94829173 </td>
+   <td style="text-align:right;"> 0.00673751 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -140.74804862 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.34340389 </td>
+   <td style="text-align:right;"> 0.00844333 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -40.67161524 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.57468694 </td>
+   <td style="text-align:right;"> 0.00705126 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -81.50131627 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.64988875 </td>
+   <td style="text-align:right;"> 0.00669847 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -97.02045795 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.92361307 </td>
+   <td style="text-align:right;"> 0.00641628 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -143.94846878 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.23128305 </td>
+   <td style="text-align:right;"> 0.00770897 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -30.00180815 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.30648486 </td>
+   <td style="text-align:right;"> 0.00738760 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -41.48638032 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.58020918 </td>
+   <td style="text-align:right;"> 0.00713256 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -81.34655326 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.07520180 </td>
+   <td style="text-align:right;"> 0.00574444 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.09122429 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.34892613 </td>
+   <td style="text-align:right;"> 0.00541338 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -64.45625245 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.27372432 </td>
+   <td style="text-align:right;"> 0.00494504 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -55.35334591 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.86670798 </td>
+   <td style="text-align:right;"> 0.01118598 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 77.48164278 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.76790217 </td>
+   <td style="text-align:right;"> 0.01088587 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 70.54115547 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.69586103 </td>
+   <td style="text-align:right;"> 0.01116687 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 62.31477204 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 1.05796393 </td>
+   <td style="text-align:right;"> 0.01050411 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 100.71907956 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.45276821 </td>
+   <td style="text-align:right;"> 0.01010603 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 44.80178644 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.64313320 </td>
+   <td style="text-align:right;"> 0.01000754 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 64.26489628 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.09880581 </td>
+   <td style="text-align:right;"> 0.00745146 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.25991832 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.17084695 </td>
+   <td style="text-align:right;"> 0.00785626 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -21.74661275 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.19125595 </td>
+   <td style="text-align:right;"> 0.00688189 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 27.79120776 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.41393977 </td>
+   <td style="text-align:right;"> 0.00625749 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -66.15108222 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.22357478 </td>
+   <td style="text-align:right;"> 0.00609696 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -36.66985058 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.07204114 </td>
+   <td style="text-align:right;"> 0.00742273 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -9.70548309 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.29006175 </td>
+   <td style="text-align:right;"> 0.00638246 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 45.44672435 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.31513397 </td>
+   <td style="text-align:right;"> 0.00570361 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -55.25163148 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.12476897 </td>
+   <td style="text-align:right;"> 0.00552710 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -22.57403834 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.36210290 </td>
+   <td style="text-align:right;"> 0.00685083 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 52.85533046 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.24309282 </td>
+   <td style="text-align:right;"> 0.00622332 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -39.06161730 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.05272783 </td>
+   <td style="text-align:right;"> 0.00606181 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -8.69836090 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.60519572 </td>
+   <td style="text-align:right;"> 0.00493544 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -122.62239065 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> -0.41483073 </td>
+   <td style="text-align:right;"> 0.00473118 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -87.68017325 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.19036499 </td>
+   <td style="text-align:right;"> 0.00376557 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 50.55407367 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.12359809 </td>
+   <td style="text-align:right;"> 0.01194256 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 94.08354750 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.07974696 </td>
+   <td style="text-align:right;"> 0.01165351 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 92.65422940 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.16369775 </td>
+   <td style="text-align:right;"> 0.01173113 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 99.19740539 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 1.89704858 </td>
+   <td style="text-align:right;"> 0.01188095 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 159.67151407 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.50383395 </td>
+   <td style="text-align:right;"> 0.01154773 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 43.63056551 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.97428271 </td>
+   <td style="text-align:right;"> 0.01106267 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 88.06942359 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.04385114 </td>
+   <td style="text-align:right;"> 0.00700188 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -6.26276926 </td>
+   <td style="text-align:right;"> 0.00000001 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.04009966 </td>
+   <td style="text-align:right;"> 0.00713026 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 5.62387181 </td>
+   <td style="text-align:right;"> 0.00000039 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.77345049 </td>
+   <td style="text-align:right;"> 0.00737445 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 104.88244385 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.61976414 </td>
+   <td style="text-align:right;"> 0.00682473 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -90.81149629 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.14931538 </td>
+   <td style="text-align:right;"> 0.00596698 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -25.02360038 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.08395080 </td>
+   <td style="text-align:right;"> 0.00663483 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 12.65303574 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.81730162 </td>
+   <td style="text-align:right;"> 0.00689642 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 118.51105292 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.57591301 </td>
+   <td style="text-align:right;"> 0.00630508 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -91.34115851 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.10546425 </td>
+   <td style="text-align:right;"> 0.00536513 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -19.65733758 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.73335083 </td>
+   <td style="text-align:right;"> 0.00702689 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 104.36342763 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.65986380 </td>
+   <td style="text-align:right;"> 0.00644761 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -102.34233633 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.18941505 </td>
+   <td style="text-align:right;"> 0.00553169 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -34.24177808 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -1.39321463 </td>
+   <td style="text-align:right;"> 0.00671544 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -207.46430853 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> -0.92276587 </td>
+   <td style="text-align:right;"> 0.00584280 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -157.93204968 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.47044876 </td>
+   <td style="text-align:right;"> 0.00513143 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 91.67987852 </td>
+   <td style="text-align:right;"> 0.00000000 </td>
+  </tr>
+</tbody>
+</table>
+
+### Laminations-Grammar Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Laminations × Grammar EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Lamination </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9417874 </td>
+   <td style="text-align:right;"> 0.9405288 </td>
+   <td style="text-align:right;"> 0.9430201 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9380452 </td>
+   <td style="text-align:right;"> 0.9366740 </td>
+   <td style="text-align:right;"> 0.9393877 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8477328 </td>
+   <td style="text-align:right;"> 0.8463967 </td>
+   <td style="text-align:right;"> 0.8490583 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8418477 </td>
+   <td style="text-align:right;"> 0.8404257 </td>
+   <td style="text-align:right;"> 0.8432581 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8595328 </td>
+   <td style="text-align:right;"> 0.8584829 </td>
+   <td style="text-align:right;"> 0.8605756 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8531633 </td>
+   <td style="text-align:right;"> 0.8520360 </td>
+   <td style="text-align:right;"> 0.8542828 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8702982 </td>
+   <td style="text-align:right;"> 0.8691007 </td>
+   <td style="text-align:right;"> 0.8714855 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8653995 </td>
+   <td style="text-align:right;"> 0.8641155 </td>
+   <td style="text-align:right;"> 0.8666723 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8218975 </td>
+   <td style="text-align:right;"> 0.8209022 </td>
+   <td style="text-align:right;"> 0.8228878 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8119816 </td>
+   <td style="text-align:right;"> 0.8109304 </td>
+   <td style="text-align:right;"> 0.8130277 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.9027251 </td>
+   <td style="text-align:right;"> 0.9022668 </td>
+   <td style="text-align:right;"> 0.9031814 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8941213 </td>
+   <td style="text-align:right;"> 0.8936268 </td>
+   <td style="text-align:right;"> 0.8946136 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8948059 </td>
+   <td style="text-align:right;"> 0.8942689 </td>
+   <td style="text-align:right;"> 0.8953403 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8872005 </td>
+   <td style="text-align:right;"> 0.8866081 </td>
+   <td style="text-align:right;"> 0.8877900 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Laminations By Grammar Type (Proportion Correct) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> grammartype </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.06427279 </td>
+   <td style="text-align:right;"> 0.01291748 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 4.975643 </td>
+   <td style="text-align:right;"> 6.5e-07 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.04130682 </td>
+   <td style="text-align:right;"> 0.00478956 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 8.624343 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.04796963 </td>
+   <td style="text-align:right;"> 0.00458742 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 10.456772 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.03982872 </td>
+   <td style="text-align:right;"> 0.00546874 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 7.282980 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.06004480 </td>
+   <td style="text-align:right;"> 0.00313980 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 19.123738 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.08945590 </td>
+   <td style="text-align:right;"> 0.00320342 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 27.925109 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.07399046 </td>
+   <td style="text-align:right;"> 0.00309663 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 23.893840 </td>
+   <td style="text-align:right;"> 0.0e+00 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Grammar Types By Lamination (Proportion Correct) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> laminations </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 1.01315526 </td>
+   <td style="text-align:right;"> 0.01222013 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 82.90874 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.92576263 </td>
+   <td style="text-align:right;"> 0.01194135 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 77.52578 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.83995383 </td>
+   <td style="text-align:right;"> 0.01228861 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 68.35220 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 1.18488661 </td>
+   <td style="text-align:right;"> 0.01165487 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 101.66447 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.53433305 </td>
+   <td style="text-align:right;"> 0.01150282 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 46.45233 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.61692648 </td>
+   <td style="text-align:right;"> 0.01154172 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 53.45185 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.08739262 </td>
+   <td style="text-align:right;"> 0.00625761 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.96583 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.17320143 </td>
+   <td style="text-align:right;"> 0.00690464 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -25.08479 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.17173135 </td>
+   <td style="text-align:right;"> 0.00562683 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 30.52007 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.47882221 </td>
+   <td style="text-align:right;"> 0.00535748 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -89.37449 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.39622878 </td>
+   <td style="text-align:right;"> 0.00546237 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -72.53784 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.08580880 </td>
+   <td style="text-align:right;"> 0.00641063 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -13.38539 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.25912397 </td>
+   <td style="text-align:right;"> 0.00503374 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 51.47745 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.39142959 </td>
+   <td style="text-align:right;"> 0.00471500 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -83.01794 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.30883615 </td>
+   <td style="text-align:right;"> 0.00482587 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -63.99593 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.34493278 </td>
+   <td style="text-align:right;"> 0.00582325 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 59.23369 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.30562078 </td>
+   <td style="text-align:right;"> 0.00554623 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -55.10428 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.22302735 </td>
+   <td style="text-align:right;"> 0.00563691 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -39.56552 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.65055356 </td>
+   <td style="text-align:right;"> 0.00384102 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -169.36987 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.56796013 </td>
+   <td style="text-align:right;"> 0.00400290 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -141.88704 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.08259343 </td>
+   <td style="text-align:right;"> 0.00358902 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 23.01280 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.99018929 </td>
+   <td style="text-align:right;"> 0.01252396 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 79.06362 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.90945947 </td>
+   <td style="text-align:right;"> 0.01223985 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 74.30316 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.81550976 </td>
+   <td style="text-align:right;"> 0.01260845 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 64.67960 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 1.18065861 </td>
+   <td style="text-align:right;"> 0.01192865 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 98.97669 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.55951616 </td>
+   <td style="text-align:right;"> 0.01177216 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 47.52874 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> SL - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.62664415 </td>
+   <td style="text-align:right;"> 0.01182594 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 52.98896 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTT </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.08072981 </td>
+   <td style="text-align:right;"> 0.00641466 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -12.58520 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.17467953 </td>
+   <td style="text-align:right;"> 0.00710088 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -24.59969 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.19046933 </td>
+   <td style="text-align:right;"> 0.00572849 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 33.24946 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.43067313 </td>
+   <td style="text-align:right;"> 0.00545729 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -78.91697 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LT - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.36354514 </td>
+   <td style="text-align:right;"> 0.00559176 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -65.01448 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - LTTO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.09394972 </td>
+   <td style="text-align:right;"> 0.00660212 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -14.23023 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.27119914 </td>
+   <td style="text-align:right;"> 0.00512518 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 52.91501 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.34994332 </td>
+   <td style="text-align:right;"> 0.00480051 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -72.89708 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTT - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.28281533 </td>
+   <td style="text-align:right;"> 0.00494627 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -57.17750 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - MSO </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.36514885 </td>
+   <td style="text-align:right;"> 0.00596671 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 61.19766 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.25599360 </td>
+   <td style="text-align:right;"> 0.00568676 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -45.01575 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> LTTO - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.18886561 </td>
+   <td style="text-align:right;"> 0.00580554 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -32.53197 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CS </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.62114246 </td>
+   <td style="text-align:right;"> 0.00384394 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -161.58988 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> MSO - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.55401447 </td>
+   <td style="text-align:right;"> 0.00404960 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -136.80723 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> CS - CF </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.06712799 </td>
+   <td style="text-align:right;"> 0.00362440 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 18.52114 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+### Recurrence-Laminations Interaction
+
+
+#### Estimated Marginal Means (EMMs)
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Laminations × Recurrence EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Lamination </th>
+   <th style="text-align:left;"> Architecture </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.9264080 </td>
+   <td style="text-align:right;"> 0.9254273 </td>
+   <td style="text-align:right;"> 0.9273763 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.9226503 </td>
+   <td style="text-align:right;"> 0.9215809 </td>
+   <td style="text-align:right;"> 0.9237059 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.5925260 </td>
+   <td style="text-align:right;"> 0.5902691 </td>
+   <td style="text-align:right;"> 0.5947752 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> 0.6012878 </td>
+   <td style="text-align:right;"> 0.5990043 </td>
+   <td style="text-align:right;"> 0.6035629 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.8950150 </td>
+   <td style="text-align:right;"> 0.8944864 </td>
+   <td style="text-align:right;"> 0.8955412 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.8788265 </td>
+   <td style="text-align:right;"> 0.8782383 </td>
+   <td style="text-align:right;"> 0.8794120 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.9472220 </td>
+   <td style="text-align:right;"> 0.9469320 </td>
+   <td style="text-align:right;"> 0.9475105 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.9439152 </td>
+   <td style="text-align:right;"> 0.9436078 </td>
+   <td style="text-align:right;"> 0.9442210 </td>
+  </tr>
+</tbody>
+</table>
+
+#### Pairwise Contrasts  
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Laminations By Architecture (Proportion Correct) (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> recurrence </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> FFN </td>
+   <td style="text-align:right;"> 0.05180541 </td>
+   <td style="text-align:right;"> 0.00731321 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 7.083809 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> FFN (Sequential) </td>
+   <td style="text-align:right;"> -0.02844807 </td>
+   <td style="text-align:right;"> 0.00267502 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -10.634709 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> RNN </td>
+   <td style="text-align:right;"> 0.15235050 </td>
+   <td style="text-align:right;"> 0.00337660 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 45.119555 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Dense - Laminated </td>
+   <td style="text-align:left;"> GRU </td>
+   <td style="text-align:right;"> 0.06250309 </td>
+   <td style="text-align:right;"> 0.00366821 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 17.039134 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Pairwise Contrasts Between Architecture By Laminations (Proportion Correct)  (Log-Log Scale)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> contrast </th>
+   <th style="text-align:left;"> laminations </th>
+   <th style="text-align:right;"> estimate </th>
+   <th style="text-align:right;"> SE </th>
+   <th style="text-align:right;"> df </th>
+   <th style="text-align:right;"> z.ratio </th>
+   <th style="text-align:right;"> p.value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 1.9237572 </td>
+   <td style="text-align:right;"> 0.00844784 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 227.72188 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> 0.3722487 </td>
+   <td style="text-align:right;"> 0.00730412 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 50.96421 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.3434308 </td>
+   <td style="text-align:right;"> 0.00740645 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -46.36915 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -1.5515085 </td>
+   <td style="text-align:right;"> 0.00459628 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -337.55768 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -2.2671881 </td>
+   <td style="text-align:right;"> 0.00469293 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -483.10676 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> Dense </td>
+   <td style="text-align:right;"> -0.7156795 </td>
+   <td style="text-align:right;"> 0.00371927 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -192.42471 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - FFN (Sequential) </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 1.8435037 </td>
+   <td style="text-align:right;"> 0.00868359 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 212.29747 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - RNN </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> 0.4727938 </td>
+   <td style="text-align:right;"> 0.00753104 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> 62.77937 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.3327331 </td>
+   <td style="text-align:right;"> 0.00764927 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -43.49869 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - RNN </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -1.3707099 </td>
+   <td style="text-align:right;"> 0.00460391 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -297.72714 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FFN (Sequential) - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -2.1762369 </td>
+   <td style="text-align:right;"> 0.00472950 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -460.14069 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> RNN - GRU </td>
+   <td style="text-align:left;"> Laminated </td>
+   <td style="text-align:right;"> -0.8055269 </td>
+   <td style="text-align:right;"> 0.00367601 </td>
+   <td style="text-align:right;"> Inf </td>
+   <td style="text-align:right;"> -219.13095 </td>
+   <td style="text-align:right;"> 0 </td>
+  </tr>
+</tbody>
+</table>
+
+### Input Size 
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Input Size × Grammar EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Input Size </th>
+   <th style="text-align:left;"> Grammar Type </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> SL </td>
+   <td style="text-align:right;"> 0.9399445 </td>
+   <td style="text-align:right;"> 0.9388640 </td>
+   <td style="text-align:right;"> 0.9410065 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LT </td>
+   <td style="text-align:right;"> 0.8448155 </td>
+   <td style="text-align:right;"> 0.8436120 </td>
+   <td style="text-align:right;"> 0.8460106 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LTT </td>
+   <td style="text-align:right;"> 0.8563803 </td>
+   <td style="text-align:right;"> 0.8554723 </td>
+   <td style="text-align:right;"> 0.8572832 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> LTTO </td>
+   <td style="text-align:right;"> 0.8678697 </td>
+   <td style="text-align:right;"> 0.8668215 </td>
+   <td style="text-align:right;"> 0.8689104 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> MSO </td>
+   <td style="text-align:right;"> 0.8169989 </td>
+   <td style="text-align:right;"> 0.8161121 </td>
+   <td style="text-align:right;"> 0.8178820 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> CS </td>
+   <td style="text-align:right;"> 0.8985091 </td>
+   <td style="text-align:right;"> 0.8981417 </td>
+   <td style="text-align:right;"> 0.8988753 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 6.315068 </td>
+   <td style="text-align:left;"> CF </td>
+   <td style="text-align:right;"> 0.8910654 </td>
+   <td style="text-align:right;"> 0.8905960 </td>
+   <td style="text-align:right;"> 0.8915330 </td>
+  </tr>
+</tbody>
+</table>
+
+### Slope of layers
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Layers EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Layers </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 3.465753 </td>
+   <td style="text-align:right;"> 0.8795825 </td>
+   <td style="text-align:right;"> 0.8791892 </td>
+   <td style="text-align:right;"> 0.8799745 </td>
+  </tr>
+</tbody>
+</table>
+
+### Slope of neurons
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Neurons EMMs (Proportion Correct)</caption>
+ <thead>
+  <tr>
+   <th style="text-align:right;"> Neurons </th>
+   <th style="text-align:right;"> Proportion Correct </th>
+   <th style="text-align:right;"> Asymptotic LCL </th>
+   <th style="text-align:right;"> Asymptotic UCL </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:right;"> 272 </td>
+   <td style="text-align:right;"> 0.8795825 </td>
+   <td style="text-align:right;"> 0.8791892 </td>
+   <td style="text-align:right;"> 0.8799745 </td>
+  </tr>
+</tbody>
+</table>
+
+
