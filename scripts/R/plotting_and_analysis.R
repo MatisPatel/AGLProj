@@ -1115,7 +1115,7 @@ if (rerun_analysis) {
   # Layers
 
   emm_layers_inverse_brier <- emmeans::emmeans(best_mod_inverse_brier, ~ layers,
-                                              at   = list(layers = seq(1, 3, by = 1)))
+                                              at   = list(layers = seq(1, 5, by = 1)))
 
   layers_kabel_inverse_brier <- kableExtra::kable(dplyr::transmute(as.data.frame(emm_layers_inverse_brier),
                                                                       Layers = layers,
@@ -1139,7 +1139,7 @@ if (rerun_analysis) {
                 file = "plots/layers_path_brier_score_inverse_emmeans.pdf")
 
   emm_layers_proportion <- emmeans::emmeans(best_mod_proportion, ~ layers,
-                                              at   = list(layers = seq(1, 3, by = 1)))
+                                              at   = list(layers = seq(1, 5, by = 1)))
 
   layers_kabel_proportion <- kableExtra::kable(dplyr::transmute(as.data.frame(emm_layers_proportion),
                                                                   Layers = layers,
@@ -1291,7 +1291,7 @@ if (rerun_analysis) {
                 file = "plots/input_size_by_grammar_path_brier_score_inverse_emmeans_filtered.pdf")
 
   emm_layers_inverse_brier_filtered <- emmeans::emmeans(filtered_model_inverse_brier, ~ layers,
-                                                        at   = list(layers = seq(1, 3, by = 1)))
+                                                        at   = list(layers = seq(1, 5, by = 1)))
 
   plot_emm_path(dplyr::transmute(as.data.frame(emm_layers_inverse_brier_filtered),
                                 layers = layers,
@@ -1378,7 +1378,7 @@ if (rerun_analysis) {
                 file = "plots/input_size_by_grammar_path_proportion_emmeans_filtered.pdf")
 
   emm_layers_proportion_filtered <- emmeans::emmeans(filtered_model_proportion, ~ layers,
-                                                        at   = list(layers = seq(1, 3, by = 1)))
+                                                        at   = list(layers = seq(1, 5, by = 1)))
 
   plot_emm_path(dplyr::transmute(as.data.frame(emm_layers_proportion_filtered),
                                 layers = layers,

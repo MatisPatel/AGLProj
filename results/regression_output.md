@@ -1,6 +1,6 @@
 # Beta‑Regression Model Selection Report
 
-*Generated on: 2026‑01‑22 13:56*
+*Generated on: 2026‑01‑22 18:27*
 
 *Author*: Konstantinos Voudouris
 
@@ -3601,6 +3601,18 @@ Results averaged over the levels of: recurrence, laminations, grammartype</capti
    <td style="text-align:right;"> 0.9146731 </td>
    <td style="text-align:right;"> 0.9153411 </td>
   </tr>
+  <tr>
+   <td style="text-align:right;"> 4 </td>
+   <td style="text-align:right;"> 0.9057565 </td>
+   <td style="text-align:right;"> 0.9053830 </td>
+   <td style="text-align:right;"> 0.9061287 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 5 </td>
+   <td style="text-align:right;"> 0.8955571 </td>
+   <td style="text-align:right;"> 0.8950854 </td>
+   <td style="text-align:right;"> 0.8960269 </td>
+  </tr>
 </tbody>
 </table>
 
@@ -6230,6 +6242,18 @@ Results averaged over the levels of: recurrence, laminations, grammartype</capti
    <td style="text-align:right;"> 0.9273742 </td>
    <td style="text-align:right;"> 0.9270526 </td>
    <td style="text-align:right;"> 0.9276944 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 4 </td>
+   <td style="text-align:right;"> 0.9158754 </td>
+   <td style="text-align:right;"> 0.9155038 </td>
+   <td style="text-align:right;"> 0.9162455 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 5 </td>
+   <td style="text-align:right;"> 0.9026537 </td>
+   <td style="text-align:right;"> 0.9021666 </td>
+   <td style="text-align:right;"> 0.9031385 </td>
   </tr>
 </tbody>
 </table>
@@ -8868,6 +8892,18 @@ Number of iterations: 101 (BFGS) + 14 (Fisher scoring)
    <td style="text-align:right;"> 0.9123997 </td>
    <td style="text-align:right;"> 0.9131384 </td>
   </tr>
+  <tr>
+   <td style="text-align:right;"> 4 </td>
+   <td style="text-align:right;"> 0.9089106 </td>
+   <td style="text-align:right;"> 0.9085210 </td>
+   <td style="text-align:right;"> 0.9092987 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 5 </td>
+   <td style="text-align:right;"> 0.9048897 </td>
+   <td style="text-align:right;"> 0.9044212 </td>
+   <td style="text-align:right;"> 0.9053562 </td>
+  </tr>
 </tbody>
 </table>
 
@@ -11455,6 +11491,18 @@ Number of iterations: 113 (BFGS) + 15 (Fisher scoring)
    <td style="text-align:right;"> 0.9248485 </td>
    <td style="text-align:right;"> 0.9244888 </td>
    <td style="text-align:right;"> 0.9252065 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 4 </td>
+   <td style="text-align:right;"> 0.9186701 </td>
+   <td style="text-align:right;"> 0.9182801 </td>
+   <td style="text-align:right;"> 0.9190584 </td>
+  </tr>
+  <tr>
+   <td style="text-align:right;"> 5 </td>
+   <td style="text-align:right;"> 0.9120085 </td>
+   <td style="text-align:right;"> 0.9115265 </td>
+   <td style="text-align:right;"> 0.9124880 </td>
   </tr>
 </tbody>
 </table>
